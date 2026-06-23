@@ -1,0 +1,148 @@
+//@version=6
+// =============================================================================
+//  FlowEdge ICT Toolkit
+//  Original work — built from public Smart Money / ICT concepts.
+//  Detects: Fair Value Gaps (FVG), Market Structure (BOS / CHoCH),
+//           Liquidity Sweeps, and highlights Kill Zone sessions.
+//  License: you are free to sell/distribute this as your own product.
+// =============================================================================
+indicator("FlowEdge ICT Toolkit", overlay = true, max_boxes_count = 500, max_lines_count = 500, max_labels_count = 500)
+
+// ---------------------------------------------------------------------------
+//  INPUTS
+// ---------------------------------------------------------------------------
+grpFVG  = "Fair Value Gaps"
+showFVG       = input.bool(true,  "Show Fair Value Gaps",                group = grpFVG)
+fvgBull       = input.color(color.new(color.teal, 80), "Bullish FVG",    group = grpFVG)
+fvgBear       = input.color(color.new(color.red,  80), "Bearish FVG",    group = grpFVG)
+fvgExtend     = input.int(20, "Extend FVG (bars)", minval = 1, maxval = 200, group = grpFVG)
+fvgMitigated  = input.bool(true, "Remove FVG when filled",              group = grpFVG)
+
+grpMS = "Market Structure"
+showMS        = input.bool(true,  "Show Market Structure (BOS / CHoCH)", group = grpMS)
+pivotLen      = input.int(5, "Swing strength (pivots)", minval = 1, maxval = 50, group = grpMS)
+bosColor      = input.color(color.gray,  "BOS line",    group = grpMS)
+chochColor    = input.color(color.orange,"CHoCH line",  group = grpMS)
+
+grpLIQ = "Liquidity Sweeps"
+showLIQ       = input.bool(true, "Show Liquidity Sweeps", group = grpLIQ)
+liqColor      = input.color(color.fuchsia, "Sweep marker", group = grpLIQ)
+
+grpKZ = "Kill Zones (exchange timezone)"
+showKZ        = input.bool(true, "Show Kill Zones", group = grpKZ)
+kz1On         = input.bool(true,  "London open",  group = grpKZ, inline = "kz1")
+kz1Sess       = input.session("0700-1000", "",    group = grpKZ, inline = "kz1")
+kz1Col        = input.color(color.new(color.blue, 90), "", group = grpKZ, inline = "kz1")
+kz2On         = input.bool(true,  "New York open",group = grpKZ, inline = "kz2")
+kz2Sess       = input.session("1230-1500", "",    group = grpKZ, inline = "kz2")
+kz2Col        = input.color(color.new(color.green, 90), "", group = grpKZ, inline = "kz2")
+
+grpAlert = "Alerts"
+alertFVG      = input.bool(true, "Alert on new FVG",        group = grpAlert)
+alertBOS      = input.bool(true, "Alert on BOS / CHoCH",    group = grpAlert)
+alertLIQ      = input.bool(true, "Alert on Liquidity Sweep",group = grpAlert)
+
+// ---------------------------------------------------------------------------
+//  FAIR VALUE GAPS
+//  Bullish FVG: gap between high[2] and low[0]  (low of current > high two bars ago)
+//  Bearish FVG: gap between low[2]  and high[0] (high of current < low  two bars ago)
+// ---------------------------------------------------------------------------
+var box[] bullBoxes = array.new<box>()
+var box[] bearBoxes = array.new<box>()
+
+bullFVG = low > high[2] and close[1] > open[1]
+bearFVG = high < low[2] and close[1] < open[1]
+
+if showFVG and barstate.isconfirmed
+    if bullFVG
+        b = box.new(bar_index - 1, low, bar_index + fvgExtend, high[2], border_color = na, bgcolor = fvgBull)
+        array.push(bullBoxes, b)
+        if alertFVG
+            alert("FlowEdge: new Bullish FVG", alert.freq_once_per_bar_close)
+    if bearFVG
+        b = box.new(bar_index - 1, high, bar_index + fvgExtend, low[2], border_color = na, bgcolor = fvgBear)
+        array.push(bearBoxes, b)
+        if alertFVG
+            alert("FlowEdge: new Bearish FVG", alert.freq_once_per_bar_close)
+
+// Remove mitigated (filled) FVGs
+if fvgMitigated
+    if array.size(bullBoxes) > 0
+        for i = array.size(bullBoxes) - 1 to 0
+            b = array.get(bullBoxes, i)
+            if low <= box.get_bottom(b)
+                box.delete(b)
+                array.remove(bullBoxes, i)
+    if array.size(bearBoxes) > 0
+        for i = array.size(bearBoxes) - 1 to 0
+            b = array.get(bearBoxes, i)
+            if high >= box.get_top(b)
+                box.delete(b)
+                array.remove(bearBoxes, i)
+
+// ---------------------------------------------------------------------------
+//  MARKET STRUCTURE  (BOS / CHoCH from swing pivots)
+// ---------------------------------------------------------------------------
+ph = ta.pivothigh(pivotLen, pivotLen)
+pl = ta.pivotlow(pivotLen, pivotLen)
+
+var float lastSwingHigh = na
+var float lastSwingLow  = na
+var int   trendDir      = 0      // 1 = up, -1 = down
+
+if not na(ph)
+    lastSwingHigh := ph
+if not na(pl)
+    lastSwingLow := pl
+
+// Break of structure on the upside
+if not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+    isChoch = trendDir == -1
+    if showMS
+        line.new(bar_index[1], lastSwingHigh, bar_index, lastSwingHigh, color = isChoch ? chochColor : bosColor, width = 1, style = line.style_dashed)
+        label.new(bar_index, lastSwingHigh, isChoch ? "CHoCH" : "BOS", style = label.style_label_down, color = color.new(isChoch ? chochColor : bosColor, 20), textcolor = color.white, size = size.small)
+    if alertBOS
+        alert(isChoch ? "FlowEdge: Bullish CHoCH" : "FlowEdge: Bullish BOS", alert.freq_once_per_bar_close)
+    trendDir := 1
+    lastSwingHigh := na
+
+// Break of structure on the downside
+if not na(lastSwingLow) and close < lastSwingLow and close[1] >= lastSwingLow
+    isChoch = trendDir == 1
+    if showMS
+        line.new(bar_index[1], lastSwingLow, bar_index, lastSwingLow, color = isChoch ? chochColor : bosColor, width = 1, style = line.style_dashed)
+        label.new(bar_index, lastSwingLow, isChoch ? "CHoCH" : "BOS", style = label.style_label_up, color = color.new(isChoch ? chochColor : bosColor, 20), textcolor = color.white, size = size.small)
+    if alertBOS
+        alert(isChoch ? "FlowEdge: Bearish CHoCH" : "FlowEdge: Bearish BOS", alert.freq_once_per_bar_close)
+    trendDir := -1
+    lastSwingLow := na
+
+// ---------------------------------------------------------------------------
+//  LIQUIDITY SWEEPS
+//  Price wicks beyond a prior swing then closes back inside = liquidity grab.
+// ---------------------------------------------------------------------------
+var float refHigh = na
+var float refLow  = na
+if not na(ph)
+    refHigh := ph
+if not na(pl)
+    refLow := pl
+
+sweepHigh = not na(refHigh) and high > refHigh and close < refHigh
+sweepLow  = not na(refLow)  and low  < refLow  and close > refLow
+
+if showLIQ and sweepHigh
+    label.new(bar_index, high, "✖", style = label.style_label_down, color = color.new(liqColor, 30), textcolor = color.white, size = size.tiny)
+    if alertLIQ
+        alert("FlowEdge: Sell-side liquidity swept (high)", alert.freq_once_per_bar_close)
+if showLIQ and sweepLow
+    label.new(bar_index, low, "✖", style = label.style_label_up, color = color.new(liqColor, 30), textcolor = color.white, size = size.tiny)
+    if alertLIQ
+        alert("FlowEdge: Buy-side liquidity swept (low)", alert.freq_once_per_bar_close)
+
+// ---------------------------------------------------------------------------
+//  KILL ZONES
+// ---------------------------------------------------------------------------
+inSession(sess) => not na(time(timeframe.period, sess))
+bgcolor(showKZ and kz1On and inSession(kz1Sess) ? kz1Col : na, title = "London KZ")
+bgcolor(showKZ and kz2On and inSession(kz2Sess) ? kz2Col : na, title = "New York KZ")
