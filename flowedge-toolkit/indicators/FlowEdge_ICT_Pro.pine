@@ -1,0 +1,326 @@
+//@version=6
+// =============================================================================
+//  FlowEdge ICT Toolkit — PRO
+//  Original work, built from public Smart Money / ICT concepts.
+//  Modules: Fair Value Gaps · Market Structure (BOS/CHoCH) · Liquidity Sweeps
+//           Session Liquidity · Previous Day H/L (PDH/PDL) · Daily High/Low
+//           Key Opens (Midnight/Day Open) · SMT Divergence · EQH/EQL
+//           Draw On Liquidity (DOL) · Alerts
+//  You are free to sell/distribute this as your own product.
+// =============================================================================
+indicator("FlowEdge ICT Toolkit — PRO", overlay = true, max_boxes_count = 500, max_lines_count = 500, max_labels_count = 500)
+
+// ---------------------------------------------------------------------------
+//  STYLE HELPERS
+// ---------------------------------------------------------------------------
+fStyle(s) => s == "Dotted" ? line.style_dotted : s == "Dashed" ? line.style_dashed : line.style_solid
+fSize(s)  => s == "Tiny" ? size.tiny : s == "Small" ? size.small : s == "Normal" ? size.normal : size.large
+fWidth(w) => w == "Thin" ? 1 : w == "Medium" ? 2 : 3
+
+tz = input.string("America/New_York", "Timezone (sessions & opens)", options = ["America/New_York", "Europe/London", "Europe/Rome", "UTC", "Asia/Tokyo"], group = "General")
+
+newDay = ta.change(time("D")) != 0
+
+// ===========================================================================
+//  FAIR VALUE GAPS
+// ===========================================================================
+gFVG = "Fair Value Gaps"
+showFVG    = input.bool(true, "Show FVG", group = gFVG)
+fvgMaxSide = input.int(3, "Max Visible per Side", minval = 1, maxval = 50, group = gFVG)
+fvgMinPts  = input.float(0, "Min Gap Size (points)", minval = 0, group = gFVG)
+fvgBull    = input.color(color.new(color.teal, 80), "Bullish color", group = gFVG, inline = "fc")
+fvgBear    = input.color(color.new(color.red, 80),  "Bearish color", group = gFVG, inline = "fc")
+fvgExtend  = input.int(20, "Extend (bars)", minval = 1, maxval = 300, group = gFVG)
+fvgMitig   = input.bool(true, "Remove when filled", group = gFVG)
+
+var box[] bullFvgBoxes = array.new<box>()
+var box[] bearFvgBoxes = array.new<box>()
+
+bullFVG = low > high[2] and (low - high[2]) >= fvgMinPts and close[1] > open[1]
+bearFVG = high < low[2] and (low[2] - high) >= fvgMinPts and close[1] < open[1]
+
+if showFVG and barstate.isconfirmed
+    if bullFVG
+        array.push(bullFvgBoxes, box.new(bar_index - 1, low, bar_index + fvgExtend, high[2], border_color = na, bgcolor = fvgBull))
+        if array.size(bullFvgBoxes) > fvgMaxSide
+            box.delete(array.shift(bullFvgBoxes))
+    if bearFVG
+        array.push(bearFvgBoxes, box.new(bar_index - 1, high, bar_index + fvgExtend, low[2], border_color = na, bgcolor = fvgBear))
+        if array.size(bearFvgBoxes) > fvgMaxSide
+            box.delete(array.shift(bearFvgBoxes))
+
+if fvgMitig
+    if array.size(bullFvgBoxes) > 0
+        for i = array.size(bullFvgBoxes) - 1 to 0
+            b = array.get(bullFvgBoxes, i)
+            if low <= box.get_bottom(b)
+                box.delete(b)
+                array.remove(bullFvgBoxes, i)
+    if array.size(bearFvgBoxes) > 0
+        for i = array.size(bearFvgBoxes) - 1 to 0
+            b = array.get(bearFvgBoxes, i)
+            if high >= box.get_top(b)
+                box.delete(b)
+                array.remove(bearFvgBoxes, i)
+
+// ===========================================================================
+//  MARKET STRUCTURE  (BOS / CHoCH)
+// ===========================================================================
+gMS = "Market Structure"
+showMS   = input.bool(true, "Show BOS / CHoCH", group = gMS)
+pivotLen = input.int(5, "Swing strength", minval = 1, maxval = 50, group = gMS)
+bosCol   = input.color(color.gray,   "BOS",   group = gMS, inline = "ms")
+chochCol = input.color(color.orange, "CHoCH", group = gMS, inline = "ms")
+
+ph = ta.pivothigh(pivotLen, pivotLen)
+pl = ta.pivotlow(pivotLen, pivotLen)
+
+var float lastSH = na
+var float lastSL = na
+var int   trendDir = 0
+
+if not na(ph)
+    lastSH := ph
+if not na(pl)
+    lastSL := pl
+
+if not na(lastSH) and close > lastSH and close[1] <= lastSH
+    isCh = trendDir == -1
+    if showMS
+        line.new(bar_index[1], lastSH, bar_index, lastSH, color = isCh ? chochCol : bosCol, style = line.style_dashed)
+        label.new(bar_index, lastSH, isCh ? "CHoCH" : "BOS", style = label.style_label_down, color = color.new(isCh ? chochCol : bosCol, 20), textcolor = color.white, size = size.small)
+    alert(isCh ? "FlowEdge: Bullish CHoCH" : "FlowEdge: Bullish BOS", alert.freq_once_per_bar_close)
+    trendDir := 1
+    lastSH := na
+
+if not na(lastSL) and close < lastSL and close[1] >= lastSL
+    isCh = trendDir == 1
+    if showMS
+        line.new(bar_index[1], lastSL, bar_index, lastSL, color = isCh ? chochCol : bosCol, style = line.style_dashed)
+        label.new(bar_index, lastSL, isCh ? "CHoCH" : "BOS", style = label.style_label_up, color = color.new(isCh ? chochCol : bosCol, 20), textcolor = color.white, size = size.small)
+    alert(isCh ? "FlowEdge: Bearish CHoCH" : "FlowEdge: Bearish BOS", alert.freq_once_per_bar_close)
+    trendDir := -1
+    lastSL := na
+
+// ===========================================================================
+//  LIQUIDITY SWEEPS
+// ===========================================================================
+gLIQ = "Liquidity Sweeps"
+showLIQ = input.bool(true, "Show Sweeps", group = gLIQ)
+liqCol  = input.color(color.fuchsia, "Marker", group = gLIQ)
+
+var float refHigh = na
+var float refLow  = na
+if not na(ph)
+    refHigh := ph
+if not na(pl)
+    refLow := pl
+
+if showLIQ and not na(refHigh) and high > refHigh and close < refHigh
+    label.new(bar_index, high, "✖", style = label.style_label_down, color = color.new(liqCol, 30), textcolor = color.white, size = size.tiny)
+    alert("FlowEdge: Sell-side liquidity swept", alert.freq_once_per_bar_close)
+if showLIQ and not na(refLow) and low < refLow and close > refLow
+    label.new(bar_index, low, "✖", style = label.style_label_up, color = color.new(liqCol, 30), textcolor = color.white, size = size.tiny)
+    alert("FlowEdge: Buy-side liquidity swept", alert.freq_once_per_bar_close)
+
+// ===========================================================================
+//  SESSION LIQUIDITY  (NYAM / NYPM / ASIA / LONDON)
+//  Draws the high/low of each finished session as liquidity lines.
+// ===========================================================================
+gSESS = "Session Liquidity"
+showSess  = input.bool(true, "Show Session Liquidity", group = gSESS)
+sessStyle = input.string("Dotted", "Line Style", options = ["Solid", "Dashed", "Dotted"], group = gSESS)
+sessSize  = input.string("Tiny", "Label Size", options = ["Tiny", "Small", "Normal"], group = gSESS)
+sessExt   = input.int(40, "Extend (bars)", minval = 5, maxval = 300, group = gSESS)
+
+nyamOn  = input.bool(true, "NYAM",   group = gSESS, inline = "s1")
+nyamSes = input.session("0900-1130", "", group = gSESS, inline = "s1")
+nyamCol = input.color(color.new(#3b82f6, 0), "", group = gSESS, inline = "s1")
+nypmOn  = input.bool(true, "NYPM",   group = gSESS, inline = "s2")
+nypmSes = input.session("1300-1600", "", group = gSESS, inline = "s2")
+nypmCol = input.color(color.new(#8b5cf6, 0), "", group = gSESS, inline = "s2")
+asiaOn  = input.bool(true, "ASIA",   group = gSESS, inline = "s3")
+asiaSes = input.session("2000-0000", "", group = gSESS, inline = "s3")
+asiaCol = input.color(color.new(#f59e0b, 0), "", group = gSESS, inline = "s3")
+lonOn   = input.bool(true, "LONDON", group = gSESS, inline = "s4")
+lonSes  = input.session("0200-0500", "", group = gSESS, inline = "s4")
+lonCol  = input.color(color.new(#10b981, 0), "", group = gSESS, inline = "s4")
+
+// state arrays: [0]=high [1]=low [2]=startBar [3]=active
+var float[] stNYAM = array.from(na, na, na, 0.0)
+var float[] stNYPM = array.from(na, na, na, 0.0)
+var float[] stASIA = array.from(na, na, na, 0.0)
+var float[] stLON  = array.from(na, na, na, 0.0)
+
+handleSession(bool en, string sess, color col, string name) =>
+    if en and showSess
+        st = name == "NYAM" ? stNYAM : name == "NYPM" ? stNYPM : name == "ASIA" ? stASIA : stLON
+        inS = not na(time(timeframe.period, sess, tz))
+        if inS and array.get(st, 3) == 0
+            array.set(st, 0, high)
+            array.set(st, 1, low)
+            array.set(st, 2, bar_index)
+            array.set(st, 3, 1)
+        else if inS
+            array.set(st, 0, math.max(array.get(st, 0), high))
+            array.set(st, 1, math.min(array.get(st, 1), low))
+        if not inS and array.get(st, 3) == 1
+            hh = array.get(st, 0)
+            ll = array.get(st, 1)
+            line.new(bar_index, hh, bar_index + sessExt, hh, color = col, style = fStyle(sessStyle))
+            line.new(bar_index, ll, bar_index + sessExt, ll, color = col, style = fStyle(sessStyle))
+            label.new(bar_index + sessExt, hh, name + " H", style = label.style_none, textcolor = col, size = fSize(sessSize))
+            label.new(bar_index + sessExt, ll, name + " L", style = label.style_none, textcolor = col, size = fSize(sessSize))
+            array.set(st, 3, 0)
+
+handleSession(nyamOn, nyamSes, nyamCol, "NYAM")
+handleSession(nypmOn, nypmSes, nypmCol, "NYPM")
+handleSession(asiaOn, asiaSes, asiaCol, "ASIA")
+handleSession(lonOn,  lonSes,  lonCol,  "LONDON")
+
+// ===========================================================================
+//  PREVIOUS DAY HIGH / LOW  (PDH / PDL)  +  DAILY HIGH / LOW
+// ===========================================================================
+gPD = "Previous Day & Daily H/L"
+showPD  = input.bool(true, "Show PDH / PDL", group = gPD)
+pdhCol  = input.color(color.new(color.red, 0),  "PDH", group = gPD, inline = "pd")
+pdlCol  = input.color(color.new(color.green, 0),"PDL", group = gPD, inline = "pd")
+showDHL = input.bool(true, "Show Daily High/Low", group = gPD)
+dhlCol  = input.color(color.new(color.gray, 0), "Daily H/L color", group = gPD)
+levStyle= input.string("Dashed", "Line Style", options = ["Solid", "Dashed", "Dotted"], group = gPD)
+
+[pdh, pdl] = request.security(syminfo.tickerid, "D", [high[1], low[1]], lookahead = barmerge.lookahead_on)
+[cdh, cdl] = request.security(syminfo.tickerid, "D", [high, low],       lookahead = barmerge.lookahead_on)
+
+var line pdhL = na, var line pdlL = na, var line dhL = na, var line dlL = na
+var label pdhLab = na, var label pdlLab = na
+
+if showPD and newDay
+    pdhL := line.new(bar_index, pdh, bar_index, pdh, color = pdhCol, style = fStyle(levStyle))
+    pdlL := line.new(bar_index, pdl, bar_index, pdl, color = pdlCol, style = fStyle(levStyle))
+    pdhLab := label.new(bar_index, pdh, "PDH", style = label.style_none, textcolor = pdhCol, size = size.tiny)
+    pdlLab := label.new(bar_index, pdl, "PDL", style = label.style_none, textcolor = pdlCol, size = size.tiny)
+if showPD and not na(pdhL)
+    line.set_xy2(pdhL, bar_index, pdh), line.set_y1(pdhL, pdh)
+    line.set_xy2(pdlL, bar_index, pdl), line.set_y1(pdlL, pdl)
+    label.set_xy(pdhLab, bar_index, pdh), label.set_xy(pdlLab, bar_index, pdl)
+
+if showDHL and newDay
+    dhL := line.new(bar_index, cdh, bar_index, cdh, color = dhlCol, style = fStyle(levStyle))
+    dlL := line.new(bar_index, cdl, bar_index, cdl, color = dhlCol, style = fStyle(levStyle))
+if showDHL and not na(dhL)
+    line.set_xy2(dhL, bar_index, cdh), line.set_y1(dhL, cdh)
+    line.set_xy2(dlL, bar_index, cdl), line.set_y1(dlL, cdl)
+
+// ===========================================================================
+//  KEY OPENS  (Midnight / Day Open)
+// ===========================================================================
+gKO = "Key Opens"
+showMO    = input.bool(true, "Show Day/Midnight Open", group = gKO)
+moCol     = input.color(color.new(#2962ff, 0), "Color", group = gKO, inline = "ko")
+moStyle   = input.string("Dotted", "Style", options = ["Solid", "Dashed", "Dotted"], group = gKO, inline = "ko")
+moWidth   = input.string("Thin", "Thickness", options = ["Thin", "Medium", "Thick"], group = gKO, inline = "ko")
+moDays    = input.int(7, "Days Kept", minval = 1, maxval = 60, group = gKO)
+moLabel   = input.bool(true, "Label", group = gKO)
+
+dayOpen = request.security(syminfo.tickerid, "D", open, lookahead = barmerge.lookahead_on)
+var line[] moLines = array.new<line>()
+var label[] moLabs = array.new<label>()
+
+if showMO and newDay
+    l = line.new(bar_index, dayOpen, bar_index, dayOpen, color = moCol, style = fStyle(moStyle), width = fWidth(moWidth))
+    array.push(moLines, l)
+    if moLabel
+        array.push(moLabs, label.new(bar_index, dayOpen, "Open", style = label.style_none, textcolor = moCol, size = size.tiny))
+    if array.size(moLines) > moDays
+        line.delete(array.shift(moLines))
+    if moLabel and array.size(moLabs) > moDays
+        label.delete(array.shift(moLabs))
+if showMO and array.size(moLines) > 0
+    cur = array.get(moLines, array.size(moLines) - 1)
+    line.set_xy2(cur, bar_index, dayOpen), line.set_y1(cur, dayOpen)
+
+// ===========================================================================
+//  SMT DIVERGENCE  (vs correlated asset)
+// ===========================================================================
+gSMT = "SMT Divergence"
+showSMT  = input.bool(true, "Show SMT", group = gSMT)
+corrSym  = input.symbol("CME_MINI:ES1!", "Correlated Asset", group = gSMT)
+smtLen   = input.int(5, "Sensitivity (pivots)", minval = 1, maxval = 50, group = gSMT)
+smtBull  = input.color(color.new(color.lime, 0), "Bullish", group = gSMT, inline = "smt")
+smtBear  = input.color(color.new(color.red, 0),  "Bearish", group = gSMT, inline = "smt")
+
+[corrH, corrL] = request.security(corrSym, timeframe.period, [high, low])
+
+cph = ta.pivothigh(high, smtLen, smtLen)
+cpl = ta.pivotlow(low, smtLen, smtLen)
+
+var float prevPH = na, var float prevPHc = na
+var float prevPL = na, var float prevPLc = na
+
+if not na(cph)
+    cAt = corrH[smtLen]
+    if showSMT and not na(prevPH) and not na(prevPHc)
+        if cph > prevPH and cAt < prevPHc
+            label.new(bar_index - smtLen, cph, "SMT", style = label.style_label_down, color = color.new(smtBear, 20), textcolor = color.white, size = size.tiny)
+            alert("FlowEdge: Bearish SMT divergence", alert.freq_once_per_bar_close)
+    prevPH := cph
+    prevPHc := cAt
+
+if not na(cpl)
+    cAt = corrL[smtLen]
+    if showSMT and not na(prevPL) and not na(prevPLc)
+        if cpl < prevPL and cAt > prevPLc
+            label.new(bar_index - smtLen, cpl, "SMT", style = label.style_label_up, color = color.new(smtBull, 20), textcolor = color.white, size = size.tiny)
+            alert("FlowEdge: Bullish SMT divergence", alert.freq_once_per_bar_close)
+    prevPL := cpl
+    prevPLc := cAt
+
+// ===========================================================================
+//  EQUAL HIGHS / EQUAL LOWS  (EQH / EQL)
+// ===========================================================================
+gEQ = "EQH / EQL"
+showEQ  = input.bool(true, "Show EQH / EQL", group = gEQ)
+eqTol   = input.float(0.0, "Equal Tolerance (price)", minval = 0, group = gEQ)
+eqCol   = input.color(color.new(#9ca3af, 0), "Color", group = gEQ)
+eqStyle = input.string("Dotted", "Line Style", options = ["Solid", "Dashed", "Dotted"], group = gEQ)
+
+var float lastEQH = na, var int lastEQHbar = na
+var float lastEQL = na, var int lastEQLbar = na
+tol = eqTol > 0 ? eqTol : syminfo.mintick * 4
+
+if not na(ph)
+    if not na(lastEQH) and math.abs(ph - lastEQH) <= tol
+        if showEQ
+            line.new(lastEQHbar, lastEQH, bar_index - pivotLen, ph, color = eqCol, style = fStyle(eqStyle))
+            label.new(bar_index - pivotLen, ph, "EQH", style = label.style_none, textcolor = eqCol, size = size.tiny)
+    lastEQH := ph
+    lastEQHbar := bar_index - pivotLen
+if not na(pl)
+    if not na(lastEQL) and math.abs(pl - lastEQL) <= tol
+        if showEQ
+            line.new(lastEQLbar, lastEQL, bar_index - pivotLen, pl, color = eqCol, style = fStyle(eqStyle))
+            label.new(bar_index - pivotLen, pl, "EQL", style = label.style_none, textcolor = eqCol, size = size.tiny)
+    lastEQL := pl
+    lastEQLbar := bar_index - pivotLen
+
+// ===========================================================================
+//  DRAW ON LIQUIDITY  (DOL)  — projects nearest untouched PDH/PDL as targets
+// ===========================================================================
+gDOL = "Draw On Liquidity"
+showDOL = input.bool(true, "Show DOL targets", group = gDOL)
+dolUp   = input.color(color.new(color.aqua, 0),   "Upside",   group = gDOL, inline = "dol")
+dolDn   = input.color(color.new(color.orange, 0), "Downside", group = gDOL, inline = "dol")
+
+var line dolUpL = na, var line dolDnL = na
+upTarget = math.max(pdh, cdh)
+dnTarget = math.min(pdl, cdl)
+
+if showDOL
+    if na(dolUpL)
+        dolUpL := line.new(bar_index, upTarget, bar_index, upTarget, color = dolUp, style = line.style_dotted)
+        dolDnL := line.new(bar_index, dnTarget, bar_index, dnTarget, color = dolDn, style = line.style_dotted)
+    line.set_xy1(dolUpL, bar_index, close)
+    line.set_xy2(dolUpL, bar_index + 8, upTarget)
+    line.set_xy1(dolDnL, bar_index, close)
+    line.set_xy2(dolDnL, bar_index + 8, dnTarget)
