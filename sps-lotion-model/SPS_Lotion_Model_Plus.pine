@@ -1,0 +1,1041 @@
+//@version=6
+// ═══════════════════════════════════════════════════════════════════════════
+//  SPS Lotion Model+  —  ICT-style execution toolkit
+//  Session Liquidity · PDH/PDL · Data H/L (NY 8:30) · Midnight Open
+//  SMT Divergence · EQH/EQL · Unfilled HTF FVGs · DOL engine · Linked FVGs
+// ═══════════════════════════════════════════════════════════════════════════
+indicator("SPS Lotion Model+", overlay = true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 100, dynamic_requests = true)
+
+const string TZ = "America/New_York"
+const float DATA_WICK_PTS = 6.0
+
+// ═══════════════════════════ INPUTS ═══════════════════════════
+
+// ----- Session Liquidity -----
+string GS = "Session Liquidity"
+string sessLabelSizeIn = input.string("Tiny", "Label Size", options = ["Tiny", "Small", "Normal", "Large"], inline = "s0", group = GS)
+string sessLineStyleIn = input.string("Dotted", "Line Style", options = ["Solid", "Dotted", "Dashed"], inline = "s0", group = GS)
+bool useNYAM = input.bool(true, "NYAM", inline = "s1", group = GS)
+color colNYAM = input.color(#787b86, "", inline = "s1", group = GS)
+string sesNYAM = input.session("0900-1130", "", inline = "s1", group = GS)
+bool useNYPM = input.bool(true, "NYPM", inline = "s2", group = GS)
+color colNYPM = input.color(#5d606b, "", inline = "s2", group = GS)
+string sesNYPM = input.session("1300-1600", "", inline = "s2", group = GS)
+bool useASIA = input.bool(true, "ASIA", inline = "s3", group = GS)
+color colASIA = input.color(#9598a1, "", inline = "s3", group = GS)
+string sesASIA = input.session("2000-0000", "", inline = "s3", group = GS)
+bool useLDN = input.bool(true, "LONDON", inline = "s4", group = GS)
+color colLDN = input.color(#787b86, "", inline = "s4", group = GS)
+string sesLDN = input.session("0200-0500", "", inline = "s4", group = GS)
+
+// ----- Previous Day -----
+string GP = "Previous Day (PDH/PDL)"
+bool showPD = input.bool(true, "Show PDH/PDL", inline = "p0", group = GP)
+color colPDH = input.color(#787b86, "PDH", inline = "p0", group = GP)
+color colPDL = input.color(#787b86, "PDL", inline = "p0", group = GP)
+
+// ----- Data High/Low -----
+string GD = "Data High/Low"
+bool showData = input.bool(true, "Show Data High/Low", inline = "d0", group = GD)
+color colData = input.color(#787b86, "", inline = "d0", group = GD)
+string dataLineStyleIn = input.string("Dotted", "Line Style", options = ["Solid", "Dotted", "Dashed"], inline = "d1", group = GD)
+string dataLabelSizeIn = input.string("Tiny", "Label Size", options = ["Tiny", "Small", "Normal", "Large"], inline = "d1", group = GD)
+
+// ----- Key Opens -----
+string GK = "Key Opens"
+bool showMid = input.bool(false, "Midnight Open", inline = "k0", group = GK)
+color colMid = input.color(color.blue, "", inline = "k0", group = GK)
+string midStyleIn = input.string("Dotted", "", options = ["Solid", "Dotted", "Dashed"], inline = "k0", group = GK)
+int midWidth = input.int(1, "Thickness", minval = 1, maxval = 5, inline = "k0", group = GK, tooltip = "True Day Open (NY 00:00) line thickness")
+bool midLabelOn = input.bool(true, "Label", inline = "k1", group = GK)
+string midLabelSizeIn = input.string("Tiny", "", options = ["Tiny", "Small", "Normal", "Large"], inline = "k1", group = GK)
+int midDaysKept = input.int(7, "Days Kept", minval = 0, maxval = 30, inline = "k1", group = GK, tooltip = "How many prior True Day Opens stay on the chart (0 = current day only)")
+
+// ----- SMT Divergence -----
+string GM = "SMT Divergence"
+string smtMode = input.string("Automatic", "Correlated Asset", options = ["Automatic", "Manual"], inline = "m0", group = GM)
+string smtManualSym = input.symbol("CME_MINI:ES1!", "", inline = "m0", group = GM, tooltip = "Automatic pairs: NQ<->ES, MNQ<->MES, YM->ES, MYM->MES, GC<->SI, MGC<->SIL. Manual mode uses this symbol.")
+string smtSens = input.string("Sensitive", "Sensitivity", options = ["Sensitive", "Normal", "Strict"], inline = "m1", group = GM, tooltip = "Pivot strength: Sensitive = 2, Normal = 3, Strict = 5 bars per side")
+int smtMaxVisible = input.int(5, "Max Visible", minval = 1, maxval = 50, inline = "m1", group = GM)
+bool smtRealtime = input.bool(true, "Real-time SMTs", inline = "m2", group = GM)
+bool smtGapOn = input.bool(true, "Gap SMTs", inline = "m2", group = GM, tooltip = "Flag bars where one symbol prints a 3-candle FVG and the correlated symbol does not")
+color smtBullCol = input.color(#787b86, "Bullish:", inline = "m3", group = GM)
+string smtBullWidth = input.string("Thin", "", options = ["Thin", "Medium", "Thick"], inline = "m3", group = GM)
+string smtBullStyle = input.string("Solid", "", options = ["Solid", "Dotted", "Dashed"], inline = "m3", group = GM)
+color smtBearCol = input.color(#787b86, "Bearish:", inline = "m4", group = GM)
+string smtBearWidth = input.string("Thin", "", options = ["Thin", "Medium", "Thick"], inline = "m4", group = GM)
+string smtBearStyle = input.string("Solid", "", options = ["Solid", "Dotted", "Dashed"], inline = "m4", group = GM)
+bool smtLabelOn = input.bool(true, "Label", inline = "m5", group = GM)
+color smtLabelCol = input.color(#787b86, "", inline = "m5", group = GM)
+string smtLabelSizeIn = input.string("Tiny", "Size", options = ["Tiny", "Small", "Normal", "Large"], inline = "m5", group = GM)
+bool smtShowSym = input.bool(true, "Show symbol", inline = "m5", group = GM, tooltip = "Append the correlated symbol to the SMT label")
+
+// ----- EQH / EQL -----
+string GE = "EQH / EQL"
+bool eqShow = input.bool(true, "Show EQH/EQL", inline = "e0", group = GE)
+color eqCol = input.color(#787b86, "", inline = "e0", group = GE)
+string eqMinTf = input.timeframe("1", "Lowest Timeframe for EQH/L", group = GE, tooltip = "Detection is disabled on chart timeframes below this")
+float eqTol = input.float(0.0, "Equal Tolerance (price)", minval = 0.0, group = GE, tooltip = "0 = exact match; otherwise highs/lows within this distance count as equal")
+int eqMaxStored = input.int(100, "Max Stored Levels", minval = 10, maxval = 500, group = GE)
+string eqLineStyleIn = input.string("Dotted", "Line Style", options = ["Solid", "Dotted", "Dashed"], inline = "e1", group = GE)
+string eqLabelSizeIn = input.string("Tiny", "Label Size", options = ["Tiny", "Small", "Normal", "Large"], inline = "e1", group = GE)
+
+// ----- Unfilled HTF Fair Value Gaps -----
+string GF = "Fair Value Gaps (HTF)"
+bool fvgShow = input.bool(true, "Show", inline = "f0", group = GF)
+string fvgTf = input.timeframe("5", "Timeframe", inline = "f0", group = GF, tooltip = "Higher timeframe used for FVG detection")
+int fvgMaxVisible = input.int(1, "Max Visible per Side", minval = 1, maxval = 4, group = GF)
+bool fvgKeepAfterTap = input.bool(true, "Keep Lines After Tap", group = GF, tooltip = "Off = the proximal-edge guide line is removed at first touch")
+float fvgMinGap = input.float(2.0, "Min Gap Size (pts)", minval = 0.0, group = GF)
+color fvgBullCol = input.color(#26a69a, "Bull", inline = "f1", group = GF)
+color fvgBearCol = input.color(#ef5350, "Bear", inline = "f1", group = GF)
+string fvgLineStyleIn = input.string("Solid", "Line Style", options = ["Solid", "Dotted", "Dashed"], inline = "f1", group = GF)
+color fvgLabelCol = input.color(#787b86, "Label Color", inline = "f2", group = GF)
+string fvgLabelSizeIn = input.string("Small", "Label Size", options = ["Tiny", "Small", "Normal", "Large"], inline = "f2", group = GF)
+
+// ----- DOL -----
+string GO = "DOL (Draw on Liquidity)"
+bool dolShow = input.bool(true, "Show DOL:", inline = "o0", group = GO)
+color dolUpCol = input.color(color.new(#b2b5be, 40), "Upside", inline = "o0", group = GO)
+color dolDnCol = input.color(color.new(#b2b5be, 40), "Downside", inline = "o0", group = GO)
+string dolLineStyleIn = input.string("Dotted", "Line Style", options = ["Solid", "Dotted", "Dashed"], inline = "o1", group = GO)
+string dolLabelSizeIn = input.string("Tiny", "Label Size", options = ["Tiny", "Small", "Normal", "Large"], inline = "o1", group = GO)
+string dolAlignMode = input.string("Automatic", "Alignment Mode", options = ["Automatic", "Manual"], inline = "o2", group = GO, tooltip = "Timeframe used for the HTF swing-pivot source. Automatic: 1m->15m, 5m->1H, 15m->4H, 1H->1D, else 1W")
+string dolManualTf = input.timeframe("15", "Timeframe", inline = "o2", group = GO)
+bool dolSrcSwings = input.bool(true, "Unswept HTF Swings", inline = "o3", group = GO)
+bool dolSrcData = input.bool(false, "Data H/L", inline = "o3", group = GO)
+bool dolSrcFvg = input.bool(false, "HTF FVG Edges", inline = "o4", group = GO, tooltip = "Bear FVG bottoms feed BSL, bull FVG tops feed SSL")
+bool dolSrcPD = input.bool(false, "PDH / PDL", inline = "o4", group = GO)
+bool dolSrcSess = input.bool(false, "Session H/L", inline = "o5", group = GO, tooltip = "Only sessions enabled in Session Liquidity feed the pool")
+
+// ----- Linked FVG -----
+string GL = "Linked FVG"
+bool lfShow = input.bool(true, "Show Linked FVGs", inline = "l0", group = GL, tooltip = "One bullish chart-TF FVG is linked to the lower DOL and one bearish FVG to the upper DOL")
+color lfBullCol = input.color(color.new(#089981, 85), "Bull FVG", inline = "l0", group = GL)
+color lfBearCol = input.color(color.new(#f23645, 85), "Bear FVG", inline = "l0", group = GL)
+
+// ----- Watermark -----
+string GW = "Watermark"
+bool wmShow = input.bool(true, "Display Watermark", group = GW)
+color wmCol = input.color(color.new(#9598a1, 50), "Text Color", group = GW)
+
+// ═══════════════════════════ TYPES & STATE ═══════════════════════════
+
+type SLvl
+    line ln
+    label lb
+    float price
+    bool isHigh
+    color col
+
+type EqLvl
+    line ln
+    label lb
+    float price
+    bool isHigh
+
+type HFvg
+    float top
+    float bottom
+    bool isBull
+    bool tapped
+    line ln
+    label lb
+
+type CFvg
+    float top
+    float bottom
+    bool isBull
+    int born
+
+var array<SLvl> sessLvls = array.new<SLvl>()
+var array<EqLvl> eqLvls = array.new<EqLvl>()
+var array<HFvg> hfvgs = array.new<HFvg>()
+var array<CFvg> cfvgs = array.new<CFvg>()
+var array<float> claims = array.new<float>()
+
+// ═══════════════════════════ HELPERS ═══════════════════════════
+
+f_lineStyle(string s) =>
+    s == "Solid" ? line.style_solid : s == "Dashed" ? line.style_dashed : line.style_dotted
+
+f_labelSize(string s) =>
+    s == "Tiny" ? size.tiny : s == "Small" ? size.small : s == "Normal" ? size.normal : size.large
+
+f_lwidth(string s) =>
+    s == "Thin" ? 1 : s == "Medium" ? 2 : 3
+
+f_tfLabel(string tf) =>
+    int s = timeframe.in_seconds(tf)
+    s < 60 ? "S" + str.tostring(s) : s < 3600 ? "M" + str.tostring(s / 60) : s < 86400 ? "H" + str.tostring(s / 3600) : s < 604800 ? "D" + str.tostring(s / 86400) : "W"
+
+f_tfPretty() =>
+    int s = timeframe.in_seconds()
+    s < 60 ? str.tostring(s) + "s" : s < 3600 ? str.tostring(s / 60) + "m" : s < 86400 ? str.tostring(s / 3600) + "h" : s < 604800 ? str.tostring(s / 86400) + "D" : "W"
+
+f_symShort(string s) =>
+    string out = s
+    int p = str.pos(out, ":")
+    if not na(p)
+        out := str.substring(out, p + 1)
+    str.replace_all(out, "1!", "")
+
+f_autoSym() =>
+    string r = na(syminfo.root) ? "" : syminfo.root
+    switch r
+        "NQ" => "CME_MINI:ES1!"
+        "ES" => "CME_MINI:NQ1!"
+        "MNQ" => "CME_MINI:MES1!"
+        "MES" => "CME_MINI:MNQ1!"
+        "YM" => "CME_MINI:ES1!"
+        "MYM" => "CME_MINI:MES1!"
+        "GC" => "COMEX:SI1!"
+        "SI" => "COMEX:GC1!"
+        "MGC" => "COMEX:SIL1!"
+        "SIL" => "COMEX:MGC1!"
+        => ""
+
+f_autoDolTf() =>
+    int s = timeframe.in_seconds()
+    s <= 60 ? "15" : s <= 300 ? "60" : s <= 900 ? "240" : s <= 3600 ? "D" : "W"
+
+f_claimed(float p) =>
+    bool hit = false
+    if claims.size() > 0
+        for i = 0 to claims.size() - 1
+            if math.abs(claims.get(i) - p) <= syminfo.mintick * 0.5
+                hit := true
+                break
+    hit
+
+// Closest candidate above ref (fallback: absolute nearest in the pool)
+f_selectAbove(array<float> cands, float ref) =>
+    float best = na
+    float anyBest = na
+    float anyDist = na
+    if cands.size() > 0
+        for i = 0 to cands.size() - 1
+            float p = cands.get(i)
+            if p > ref and (na(best) or p < best)
+                best := p
+            float d = math.abs(p - ref)
+            if na(anyDist) or d < anyDist
+                anyDist := d
+                anyBest := p
+    na(best) ? anyBest : best
+
+// Closest candidate below ref (fallback: absolute nearest in the pool)
+f_selectBelow(array<float> cands, float ref) =>
+    float best = na
+    float anyBest = na
+    float anyDist = na
+    if cands.size() > 0
+        for i = 0 to cands.size() - 1
+            float p = cands.get(i)
+            if p < ref and (na(best) or p > best)
+                best := p
+            float d = math.abs(p - ref)
+            if na(anyDist) or d < anyDist
+                anyDist := d
+                anyBest := p
+    na(best) ? anyBest : best
+
+f_newSessLvl(float price, bool isHigh, color col, string txt) =>
+    line ln = line.new(bar_index, price, bar_index + 1, price, color = col, style = f_lineStyle(sessLineStyleIn), width = 1)
+    label lb = label.new(bar_index + 1, price, txt, style = label.style_label_left, color = color.new(color.white, 100), textcolor = col, size = f_labelSize(sessLabelSizeIn))
+    sessLvls.push(SLvl.new(ln, lb, price, isHigh, col))
+
+// Tracks one session window; draws its H/L levels once the session closes
+f_trackSession(bool enabled, color col, string sessTxt, string name) =>
+    string sessFull = str.contains(sessTxt, ":") ? sessTxt : sessTxt + ":1234567"
+    bool inS = enabled and timeframe.isintraday and not na(time(timeframe.period, sessFull, TZ))
+    var float sHi = na
+    var float sLo = na
+    bool sessStart = inS and not inS[1]
+    bool sessEnd = not inS and inS[1]
+    if sessStart
+        sHi := high
+        sLo := low
+    else if inS
+        sHi := math.max(nz(sHi, high), high)
+        sLo := math.min(nz(sLo, low), low)
+    if sessEnd and not na(sHi)
+        f_newSessLvl(sHi, true, col, name + " Highs")
+        f_newSessLvl(sLo, false, col, name + " Lows")
+        sHi := na
+        sLo := na
+
+// ═══════════════════════════ CORE TIME ═══════════════════════════
+
+int nyDay = dayofmonth(time, TZ)
+bool newDayNY = nyDay != nz(nyDay[1], nyDay)
+
+// ═══════════════════════════ SESSION LIQUIDITY ═══════════════════════════
+
+f_trackSession(useNYAM, colNYAM, sesNYAM, "NY AM")
+f_trackSession(useNYPM, colNYPM, sesNYPM, "NY PM")
+f_trackSession(useASIA, colASIA, sesASIA, "ASIA")
+f_trackSession(useLDN, colLDN, sesLDN, "LONDON")
+
+// ═══════════════════════════ PREVIOUS DAY (PDH/PDL) ═══════════════════════════
+
+var float dayHi = high
+var float dayLo = low
+var float pdhPrice = na
+var float pdlPrice = na
+var bool pdhActive = false
+var bool pdlActive = false
+var line pdhLn = na
+var label pdhLb = na
+var line pdlLn = na
+var label pdlLb = na
+
+if newDayNY
+    pdhPrice := dayHi
+    pdlPrice := dayLo
+    pdhActive := not na(pdhPrice)
+    pdlActive := not na(pdlPrice)
+    line.delete(pdhLn)
+    label.delete(pdhLb)
+    line.delete(pdlLn)
+    label.delete(pdlLb)
+    pdhLn := na
+    pdhLb := na
+    pdlLn := na
+    pdlLb := na
+    if showPD and pdhActive
+        pdhLn := line.new(bar_index, pdhPrice, bar_index + 1, pdhPrice, color = colPDH, style = f_lineStyle(sessLineStyleIn), width = 1)
+        pdhLb := label.new(bar_index + 1, pdhPrice, "PD.H", style = label.style_label_left, color = color.new(color.white, 100), textcolor = colPDH, size = f_labelSize(sessLabelSizeIn))
+    if showPD and pdlActive
+        pdlLn := line.new(bar_index, pdlPrice, bar_index + 1, pdlPrice, color = colPDL, style = f_lineStyle(sessLineStyleIn), width = 1)
+        pdlLb := label.new(bar_index + 1, pdlPrice, "PD.L", style = label.style_label_left, color = color.new(color.white, 100), textcolor = colPDL, size = f_labelSize(sessLabelSizeIn))
+    dayHi := high
+    dayLo := low
+else
+    dayHi := math.max(dayHi, high)
+    dayLo := math.min(dayLo, low)
+
+// Sweep detection
+if pdhActive and high > pdhPrice
+    pdhActive := false
+    line.delete(pdhLn)
+    label.delete(pdhLb)
+    pdhLn := na
+    pdhLb := na
+if pdlActive and low < pdlPrice
+    pdlActive := false
+    line.delete(pdlLn)
+    label.delete(pdlLb)
+    pdlLn := na
+    pdlLb := na
+
+// ═══════════════════════════ DATA HIGH / LOW (NY 8:30) ═══════════════════════════
+
+bool dataCan = timeframe.isintraday and timeframe.in_seconds() >= 60 and timeframe.in_seconds() <= 3600
+string ltfRes = dataCan ? "1" : timeframe.period
+[ltO, ltH, ltL, ltC, ltT] = request.security_lower_tf(syminfo.tickerid, ltfRes, [open, high, low, close, time])
+bool dataOn = (showData or dolSrcData) and dataCan
+
+var float d829h = na
+var float d829l = na
+var float d830o = na
+var float d830h = na
+var float d830l = na
+var float d830c = na
+var float d831h = na
+var float d831l = na
+var bool dataEval = false
+
+var float dataHiPrice = na
+var line dataHiLn = na
+var label dataHiLb = na
+var float dataLoPrice = na
+var line dataLoLn = na
+var label dataLoLb = na
+
+if newDayNY
+    d829h := na
+    d829l := na
+    d830o := na
+    d830h := na
+    d830l := na
+    d830c := na
+    d831h := na
+    d831l := na
+    dataEval := false
+    dataHiPrice := na
+    dataLoPrice := na
+    line.delete(dataHiLn)
+    label.delete(dataHiLb)
+    line.delete(dataLoLn)
+    label.delete(dataLoLb)
+    dataHiLn := na
+    dataHiLb := na
+    dataLoLn := na
+    dataLoLb := na
+
+if dataOn and not dataEval
+    int nIntra = ltT.size()
+    if nIntra > 0
+        for i = 0 to nIntra - 1
+            int tI = ltT.get(i)
+            if hour(tI, TZ) == 8
+                int mI = minute(tI, TZ)
+                if mI == 29
+                    d829h := ltH.get(i)
+                    d829l := ltL.get(i)
+                else if mI == 30
+                    d830o := ltO.get(i)
+                    d830h := ltH.get(i)
+                    d830l := ltL.get(i)
+                    d830c := ltC.get(i)
+                else if mI == 31
+                    d831h := ltH.get(i)
+                    d831l := ltL.get(i)
+    if not na(d829h) and not na(d830h) and not na(d831h)
+        dataEval := true
+        float upWick = d830h - math.max(d830o, d830c)
+        float dnWick = math.min(d830o, d830c) - d830l
+        if d830h > d829h and d830h > d831h and upWick >= DATA_WICK_PTS
+            dataHiPrice := d830h
+            if showData
+                dataHiLn := line.new(bar_index, d830h, bar_index + 1, d830h, color = colData, style = f_lineStyle(dataLineStyleIn), width = 1)
+                dataHiLb := label.new(bar_index + 1, d830h, "DATA.H", style = label.style_label_left, color = color.new(color.white, 100), textcolor = colData, size = f_labelSize(dataLabelSizeIn))
+        if d830l < d829l and d830l < d831l and dnWick >= DATA_WICK_PTS
+            dataLoPrice := d830l
+            if showData
+                dataLoLn := line.new(bar_index, d830l, bar_index + 1, d830l, color = colData, style = f_lineStyle(dataLineStyleIn), width = 1)
+                dataLoLb := label.new(bar_index + 1, d830l, "DATA.L", style = label.style_label_left, color = color.new(color.white, 100), textcolor = colData, size = f_labelSize(dataLabelSizeIn))
+
+// Remove once price closes through
+if not na(dataHiPrice) and close > dataHiPrice
+    dataHiPrice := na
+    line.delete(dataHiLn)
+    label.delete(dataHiLb)
+    dataHiLn := na
+    dataHiLb := na
+if not na(dataLoPrice) and close < dataLoPrice
+    dataLoPrice := na
+    line.delete(dataLoLn)
+    label.delete(dataLoLb)
+    dataLoLn := na
+    dataLoLb := na
+
+// ═══════════════════════════ MIDNIGHT OPEN (TRUE DAY OPEN) ═══════════════════════════
+
+var array<line> midLns = array.new<line>()
+var array<label> midLbs = array.new<label>()
+
+if showMid and newDayNY
+    line mLn = line.new(bar_index, open, bar_index + 1, open, color = colMid, style = f_lineStyle(midStyleIn), width = midWidth)
+    midLns.push(mLn)
+    label mLb = na
+    if midLabelOn
+        mLb := label.new(bar_index + 1, open, "00:00 " + str.format_time(time, "dd MMM", TZ), style = label.style_label_left, color = color.new(color.white, 100), textcolor = colMid, size = f_labelSize(midLabelSizeIn))
+    midLbs.push(mLb)
+    while midLns.size() > midDaysKept + 1
+        line.delete(midLns.shift())
+        label.delete(midLbs.shift())
+
+if showMid and midLns.size() > 0
+    line.set_x2(midLns.last(), bar_index + 1)
+    label lastMidLb = midLbs.last()
+    if not na(lastMidLb)
+        label.set_x(lastMidLb, bar_index + 1)
+
+if not showMid and midLns.size() > 0
+    while midLns.size() > 0
+        line.delete(midLns.shift())
+        label.delete(midLbs.shift())
+
+// ═══════════════════════════ SMT DIVERGENCE ═══════════════════════════
+
+string corrSym = smtMode == "Manual" ? smtManualSym : f_autoSym()
+bool smtOn = str.length(corrSym) > 0
+[cH, cL] = request.security(smtOn ? corrSym : syminfo.tickerid, timeframe.period, [high, low])
+string corrDisp = smtOn ? f_symShort(corrSym) : ""
+string smtTag = "SMT" + (smtShowSym and smtOn ? " w/ " + corrDisp : "")
+
+int smtSt = smtSens == "Sensitive" ? 2 : smtSens == "Normal" ? 3 : 5
+float php = ta.pivothigh(high, smtSt, smtSt)
+float plp = ta.pivotlow(low, smtSt, smtSt)
+
+var array<line> smtLines = array.new<line>()
+var array<label> smtLabels = array.new<label>()
+var array<label> smtGapLbs = array.new<label>()
+
+f_pushSmt(line ln, label lb) =>
+    smtLines.push(ln)
+    smtLabels.push(lb)
+    while smtLines.size() > smtMaxVisible
+        line.delete(smtLines.shift())
+        label.delete(smtLabels.shift())
+
+// --- highs (bearish SMT) state ---
+var float lastPhP = na
+var float lastPhC = na
+var int lastPhB = na
+var float runHi = na
+var int runHiBar = na
+var float runCHi = na
+var line devBearLn = na
+var label devBearLb = na
+
+// --- lows (bullish SMT) state ---
+var float lastPlP = na
+var float lastPlC = na
+var int lastPlB = na
+var float runLo = na
+var int runLoBar = na
+var float runCLo = na
+var line devBullLn = na
+var label devBullLb = na
+
+if smtOn and not na(php)
+    int pb = bar_index - smtSt
+    float pc = cH[smtSt]
+    if not na(lastPhB)
+        bool eqExcl = math.abs(php - lastPhP) <= eqTol
+        bool diverg = (php > lastPhP and pc < lastPhC) or (php < lastPhP and pc > lastPhC)
+        if diverg and not eqExcl
+            line smtLn = line.new(lastPhB, lastPhP, pb, php, color = smtBearCol, width = f_lwidth(smtBearWidth), style = f_lineStyle(smtBearStyle))
+            label smtLb = na
+            if smtLabelOn
+                smtLb := label.new(pb, math.max(php, lastPhP), smtTag, style = label.style_label_down, color = color.new(color.white, 100), textcolor = smtLabelCol, size = f_labelSize(smtLabelSizeIn))
+            f_pushSmt(smtLn, smtLb)
+    lastPhP := php
+    lastPhC := pc
+    lastPhB := pb
+    runHi := na
+    runHiBar := na
+    runCHi := na
+    line.delete(devBearLn)
+    devBearLn := na
+    label.delete(devBearLb)
+    devBearLb := na
+
+if smtOn and not na(plp)
+    int pb = bar_index - smtSt
+    float pc = cL[smtSt]
+    if not na(lastPlB)
+        bool eqExcl = math.abs(plp - lastPlP) <= eqTol
+        bool diverg = (plp < lastPlP and pc > lastPlC) or (plp > lastPlP and pc < lastPlC)
+        if diverg and not eqExcl
+            line smtLn = line.new(lastPlB, lastPlP, pb, plp, color = smtBullCol, width = f_lwidth(smtBullWidth), style = f_lineStyle(smtBullStyle))
+            label smtLb = na
+            if smtLabelOn
+                smtLb := label.new(pb, math.min(plp, lastPlP), smtTag, style = label.style_label_up, color = color.new(color.white, 100), textcolor = smtLabelCol, size = f_labelSize(smtLabelSizeIn))
+            f_pushSmt(smtLn, smtLb)
+    lastPlP := plp
+    lastPlC := pc
+    lastPlB := pb
+    runLo := na
+    runLoBar := na
+    runCLo := na
+    line.delete(devBullLn)
+    devBullLn := na
+    label.delete(devBullLb)
+    devBullLb := na
+
+// --- real-time (developing) SMTs ---
+if smtOn and smtRealtime and not na(lastPhB)
+    if na(runHi) or high > runHi
+        runHi := high
+        runHiBar := bar_index
+    if na(runCHi) or cH > runCHi
+        runCHi := cH
+    bool devBear = runHi > lastPhP and runCHi < lastPhC
+    if devBear
+        if na(devBearLn)
+            devBearLn := line.new(lastPhB, lastPhP, runHiBar, runHi, color = smtBearCol, width = f_lwidth(smtBearWidth), style = line.style_dashed)
+            if smtLabelOn
+                devBearLb := label.new(runHiBar, runHi, smtTag + " ?", style = label.style_label_down, color = color.new(color.white, 100), textcolor = smtLabelCol, size = f_labelSize(smtLabelSizeIn))
+        else
+            line.set_xy2(devBearLn, runHiBar, runHi)
+            if not na(devBearLb)
+                label.set_xy(devBearLb, runHiBar, runHi)
+    else
+        line.delete(devBearLn)
+        devBearLn := na
+        label.delete(devBearLb)
+        devBearLb := na
+
+if smtOn and smtRealtime and not na(lastPlB)
+    if na(runLo) or low < runLo
+        runLo := low
+        runLoBar := bar_index
+    if na(runCLo) or cL < runCLo
+        runCLo := cL
+    bool devBull = runLo < lastPlP and runCLo > lastPlC
+    if devBull
+        if na(devBullLn)
+            devBullLn := line.new(lastPlB, lastPlP, runLoBar, runLo, color = smtBullCol, width = f_lwidth(smtBullWidth), style = line.style_dashed)
+            if smtLabelOn
+                devBullLb := label.new(runLoBar, runLo, smtTag + " ?", style = label.style_label_up, color = color.new(color.white, 100), textcolor = smtLabelCol, size = f_labelSize(smtLabelSizeIn))
+        else
+            line.set_xy2(devBullLn, runLoBar, runLo)
+            if not na(devBullLb)
+                label.set_xy(devBullLb, runLoBar, runLo)
+    else
+        line.delete(devBullLn)
+        devBullLn := na
+        label.delete(devBullLb)
+        devBullLb := na
+
+// --- Gap SMTs: one symbol prints a 3-candle FVG, the other does not ---
+if smtOn and smtGapOn and barstate.isconfirmed and bar_index > 2
+    bool gBullM = low > high[2]
+    bool gBullC = cL > cH[2]
+    bool gBearM = high < low[2]
+    bool gBearC = cH < cL[2]
+    if gBullM != gBullC
+        label gLb = label.new(bar_index, low, "SMT gap", style = label.style_label_up, color = color.new(color.white, 100), textcolor = smtBullCol, size = size.tiny)
+        smtGapLbs.push(gLb)
+    if gBearM != gBearC
+        label gLb = label.new(bar_index, high, "SMT gap", style = label.style_label_down, color = color.new(color.white, 100), textcolor = smtBearCol, size = size.tiny)
+        smtGapLbs.push(gLb)
+    while smtGapLbs.size() > smtMaxVisible
+        label.delete(smtGapLbs.shift())
+
+// ═══════════════════════════ EQUAL HIGHS / EQUAL LOWS ═══════════════════════════
+
+var array<float> eqHiP = array.new<float>()
+var array<int> eqHiB = array.new<int>()
+var array<float> eqLoP = array.new<float>()
+var array<int> eqLoB = array.new<int>()
+
+bool eqTfOk = timeframe.in_seconds() >= timeframe.in_seconds(eqMinTf)
+
+if eqShow and eqTfOk and barstate.isconfirmed
+    // ---- highs ----
+    int mHi = -1
+    if eqHiP.size() > 0
+        for i = eqHiP.size() - 1 to 0
+            float p = eqHiP.get(i)
+            if math.abs(high - p) <= eqTol
+                if mHi == -1
+                    mHi := i
+            else if high > p + eqTol
+                eqHiP.remove(i)
+                eqHiB.remove(i)
+                if mHi > i
+                    mHi := mHi - 1
+    if mHi >= 0
+        float p = eqHiP.get(mHi)
+        int b = eqHiB.get(mHi)
+        line eqLn = line.new(b, p, bar_index + 1, p, color = eqCol, style = f_lineStyle(eqLineStyleIn), width = 1)
+        label eqLb = label.new(bar_index + 1, p, "EQH", style = label.style_label_left, color = color.new(color.white, 100), textcolor = eqCol, size = f_labelSize(eqLabelSizeIn))
+        eqLvls.push(EqLvl.new(eqLn, eqLb, p, true))
+        eqHiP.remove(mHi)
+        eqHiB.remove(mHi)
+    eqHiP.push(high)
+    eqHiB.push(bar_index)
+    while eqHiP.size() > eqMaxStored
+        eqHiP.shift()
+        eqHiB.shift()
+    // ---- lows ----
+    int mLo = -1
+    if eqLoP.size() > 0
+        for i = eqLoP.size() - 1 to 0
+            float p = eqLoP.get(i)
+            if math.abs(low - p) <= eqTol
+                if mLo == -1
+                    mLo := i
+            else if low < p - eqTol
+                eqLoP.remove(i)
+                eqLoB.remove(i)
+                if mLo > i
+                    mLo := mLo - 1
+    if mLo >= 0
+        float p = eqLoP.get(mLo)
+        int b = eqLoB.get(mLo)
+        line eqLn = line.new(b, p, bar_index + 1, p, color = eqCol, style = f_lineStyle(eqLineStyleIn), width = 1)
+        label eqLb = label.new(bar_index + 1, p, "EQL", style = label.style_label_left, color = color.new(color.white, 100), textcolor = eqCol, size = f_labelSize(eqLabelSizeIn))
+        eqLvls.push(EqLvl.new(eqLn, eqLb, p, false))
+        eqLoP.remove(mLo)
+        eqLoB.remove(mLo)
+    eqLoP.push(low)
+    eqLoB.push(bar_index)
+    while eqLoP.size() > eqMaxStored
+        eqLoP.shift()
+        eqLoB.shift()
+
+// Extend active EQ levels, prune the ones traded through
+if eqLvls.size() > 0
+    for i = eqLvls.size() - 1 to 0
+        EqLvl e = eqLvls.get(i)
+        bool gone = e.isHigh ? close > e.price + eqTol : close < e.price - eqTol
+        if gone
+            line.delete(e.ln)
+            label.delete(e.lb)
+            eqLvls.remove(i)
+        else
+            line.set_x2(e.ln, bar_index + 1)
+            label.set_x(e.lb, bar_index + 1)
+while eqLvls.size() > 30
+    EqLvl eOld = eqLvls.shift()
+    line.delete(eOld.ln)
+    label.delete(eOld.lb)
+
+// ═══════════════════════════ UNFILLED HTF FAIR VALUE GAPS ═══════════════════════════
+
+[fH1, fL1, fC1, fT1] = request.security(syminfo.tickerid, fvgTf, [high[1], low[1], close[1], time[1]], lookahead = barmerge.lookahead_on)
+bool newHtf = fT1 != nz(fT1[1], fT1)
+bool fvgModuleOn = fvgShow or dolSrcFvg
+
+f_newHFvg(float top, float bottom, bool isBull) =>
+    float prox = isBull ? top : bottom
+    color fCol = isBull ? fvgBullCol : fvgBearCol
+    line fLn = line.new(bar_index, prox, bar_index + 1, prox, color = fCol, style = f_lineStyle(fvgLineStyleIn), width = 1)
+    label fLb = label.new(bar_index + 1, prox, f_tfLabel(fvgTf) + " FVG", style = label.style_label_left, color = color.new(color.white, 100), textcolor = fvgLabelCol, size = f_labelSize(fvgLabelSizeIn))
+    hfvgs.push(HFvg.new(top, bottom, isBull, false, fLn, fLb))
+    while hfvgs.size() > 40
+        HFvg fOld = hfvgs.shift()
+        line.delete(fOld.ln)
+        label.delete(fOld.lb)
+
+// Rolling window of the last three confirmed HTF bars: A (oldest), B, C (newest)
+var float rAh = na
+var float rAl = na
+var int rAt = na
+var float rBh = na
+var float rBl = na
+var int rBt = na
+var float rCh = na
+var float rCl = na
+var int rCt = na
+
+if fvgModuleOn and newHtf
+    rAh := rBh
+    rAl := rBl
+    rAt := rBt
+    rBh := rCh
+    rBl := rCl
+    rBt := rCt
+    rCh := fH1
+    rCl := fL1
+    rCt := fT1
+    if not na(rAh)
+        bool wknd = dayofweek(rAt, TZ) == dayofweek.friday and dayofweek(rCt, TZ) == dayofweek.monday
+        if not wknd
+            if rCl > rAh and (rCl - rAh) >= fvgMinGap
+                f_newHFvg(rCl, rAh, true)
+            if rCh < rAl and (rAl - rCh) >= fvgMinGap
+                f_newHFvg(rAl, rCh, false)
+    // Mitigation: HTF close fully through the gap
+    if hfvgs.size() > 0
+        for i = hfvgs.size() - 1 to 0
+            HFvg f = hfvgs.get(i)
+            bool mit = f.isBull ? fC1 < f.bottom : fC1 > f.top
+            if mit
+                line.delete(f.ln)
+                label.delete(f.lb)
+                hfvgs.remove(i)
+
+// Tap detection + visibility: N nearest per side
+if hfvgs.size() > 0
+    for i = 0 to hfvgs.size() - 1
+        HFvg f = hfvgs.get(i)
+        float prox = f.isBull ? f.top : f.bottom
+        if not f.tapped
+            bool tap = f.isBull ? low <= prox : high >= prox
+            if tap
+                f.tapped := true
+    array<bool> shown = array.new<bool>(hfvgs.size(), false)
+    if fvgShow
+        for side = 0 to 1
+            bool wantBull = side == 0
+            for n = 1 to fvgMaxVisible
+                int bi = -1
+                float bd = na
+                for i = 0 to hfvgs.size() - 1
+                    HFvg f = hfvgs.get(i)
+                    if f.isBull == wantBull and not shown.get(i) and (fvgKeepAfterTap or not f.tapped)
+                        float d = math.abs((f.isBull ? f.top : f.bottom) - close)
+                        if na(bd) or d < bd
+                            bd := d
+                            bi := i
+                if bi >= 0
+                    shown.set(bi, true)
+    for i = 0 to hfvgs.size() - 1
+        HFvg f = hfvgs.get(i)
+        bool vis = shown.get(i)
+        color fCol = f.isBull ? fvgBullCol : fvgBearCol
+        line.set_color(f.ln, vis ? fCol : color.new(fCol, 100))
+        label.set_textcolor(f.lb, vis ? fvgLabelCol : color.new(fvgLabelCol, 100))
+        line.set_x2(f.ln, bar_index + 1)
+        label.set_x(f.lb, bar_index + 1)
+
+// ═══════════════════════════ DOL — DRAW ON LIQUIDITY ═══════════════════════════
+
+string dolTf = dolAlignMode == "Manual" ? dolManualTf : f_autoDolTf()
+[dph, dpl, dpt] = request.security(syminfo.tickerid, dolTf, [ta.pivothigh(high, 3, 3)[1], ta.pivotlow(low, 3, 3)[1], time[4]], lookahead = barmerge.lookahead_on)
+
+var array<float> swHiP = array.new<float>()
+var array<int> swHiT = array.new<int>()
+var array<float> swLoP = array.new<float>()
+var array<int> swLoT = array.new<int>()
+
+var int lastSwHiT = na
+var int lastSwLoT = na
+if not na(dph) and (na(lastSwHiT) or dpt != lastSwHiT)
+    swHiP.push(dph)
+    swHiT.push(dpt)
+    lastSwHiT := dpt
+if not na(dpl) and (na(lastSwLoT) or dpt != lastSwLoT)
+    swLoP.push(dpl)
+    swLoT.push(dpt)
+    lastSwLoT := dpt
+
+// Unswept only: drop swings once price trades through them
+if swHiP.size() > 0
+    for i = swHiP.size() - 1 to 0
+        if high > swHiP.get(i)
+            swHiP.remove(i)
+            swHiT.remove(i)
+if swLoP.size() > 0
+    for i = swLoP.size() - 1 to 0
+        if low < swLoP.get(i)
+            swLoP.remove(i)
+            swLoT.remove(i)
+while swHiP.size() > 30
+    swHiP.shift()
+    swHiT.shift()
+while swLoP.size() > 30
+    swLoP.shift()
+    swLoT.shift()
+
+// Candidate pools and selection
+float dolHiVal = na
+float dolLoVal = na
+if dolShow
+    array<float> upC = array.new<float>()
+    array<float> dnC = array.new<float>()
+    if dolSrcSwings
+        if swHiP.size() > 0
+            for i = 0 to swHiP.size() - 1
+                upC.push(swHiP.get(i))
+        if swLoP.size() > 0
+            for i = 0 to swLoP.size() - 1
+                dnC.push(swLoP.get(i))
+    if dolSrcData
+        if not na(dataHiPrice)
+            upC.push(dataHiPrice)
+        if not na(dataLoPrice)
+            dnC.push(dataLoPrice)
+    if dolSrcFvg and hfvgs.size() > 0
+        for i = 0 to hfvgs.size() - 1
+            HFvg f = hfvgs.get(i)
+            if f.isBull
+                dnC.push(f.top)
+            else
+                upC.push(f.bottom)
+    if dolSrcPD
+        if pdhActive
+            upC.push(pdhPrice)
+        if pdlActive
+            dnC.push(pdlPrice)
+    if dolSrcSess and sessLvls.size() > 0
+        for i = 0 to sessLvls.size() - 1
+            SLvl s = sessLvls.get(i)
+            if s.isHigh
+                upC.push(s.price)
+            else
+                dnC.push(s.price)
+    dolHiVal := f_selectAbove(upC, close)
+    dolLoVal := f_selectBelow(dnC, close)
+
+// DOL lines & labels
+var line dolHiLn = na
+var label dolHiLb = na
+var int dolHiFrom = na
+var line dolLoLn = na
+var label dolLoLb = na
+var int dolLoFrom = na
+
+if not na(dolHiVal)
+    if na(dolHiLn)
+        dolHiLn := line.new(bar_index, dolHiVal, bar_index + 1, dolHiVal, color = dolUpCol, style = f_lineStyle(dolLineStyleIn), width = 3)
+        dolHiLb := label.new(bar_index + 1, dolHiVal, "DOL.H", style = label.style_label_left, color = color.new(color.white, 100), textcolor = dolUpCol, size = f_labelSize(dolLabelSizeIn))
+        dolHiFrom := bar_index
+    if dolHiVal != line.get_y1(dolHiLn)
+        dolHiFrom := bar_index
+    line.set_xy1(dolHiLn, dolHiFrom, dolHiVal)
+    line.set_xy2(dolHiLn, bar_index + 1, dolHiVal)
+    label.set_xy(dolHiLb, bar_index + 1, dolHiVal)
+else
+    line.delete(dolHiLn)
+    label.delete(dolHiLb)
+    dolHiLn := na
+    dolHiLb := na
+
+if not na(dolLoVal)
+    if na(dolLoLn)
+        dolLoLn := line.new(bar_index, dolLoVal, bar_index + 1, dolLoVal, color = dolDnCol, style = f_lineStyle(dolLineStyleIn), width = 3)
+        dolLoLb := label.new(bar_index + 1, dolLoVal, "DOL.L", style = label.style_label_left, color = color.new(color.white, 100), textcolor = dolDnCol, size = f_labelSize(dolLabelSizeIn))
+        dolLoFrom := bar_index
+    if dolLoVal != line.get_y1(dolLoLn)
+        dolLoFrom := bar_index
+    line.set_xy1(dolLoLn, dolLoFrom, dolLoVal)
+    line.set_xy2(dolLoLn, bar_index + 1, dolLoVal)
+    label.set_xy(dolLoLb, bar_index + 1, dolLoVal)
+else
+    line.delete(dolLoLn)
+    label.delete(dolLoLb)
+    dolLoLn := na
+    dolLoLb := na
+
+// ═══════════════ OVERLAP MERGING (DOL > PD > Sessions > Data) ═══════════════
+
+claims.clear()
+if not na(dolHiVal)
+    claims.push(dolHiVal)
+if not na(dolLoVal)
+    claims.push(dolLoVal)
+
+if pdhActive and not na(pdhLn)
+    line.set_x2(pdhLn, bar_index + 1)
+    label.set_x(pdhLb, bar_index + 1)
+    bool vis = not f_claimed(pdhPrice)
+    line.set_color(pdhLn, vis ? colPDH : color.new(colPDH, 100))
+    label.set_textcolor(pdhLb, vis ? colPDH : color.new(colPDH, 100))
+    claims.push(pdhPrice)
+if pdlActive and not na(pdlLn)
+    line.set_x2(pdlLn, bar_index + 1)
+    label.set_x(pdlLb, bar_index + 1)
+    bool vis = not f_claimed(pdlPrice)
+    line.set_color(pdlLn, vis ? colPDL : color.new(colPDL, 100))
+    label.set_textcolor(pdlLb, vis ? colPDL : color.new(colPDL, 100))
+    claims.push(pdlPrice)
+
+if sessLvls.size() > 0
+    for i = sessLvls.size() - 1 to 0
+        SLvl s = sessLvls.get(i)
+        bool swept = s.isHigh ? high > s.price : low < s.price
+        if swept
+            line.delete(s.ln)
+            label.delete(s.lb)
+            sessLvls.remove(i)
+        else
+            line.set_x2(s.ln, bar_index + 1)
+            label.set_x(s.lb, bar_index + 1)
+            bool vis = not f_claimed(s.price)
+            line.set_color(s.ln, vis ? s.col : color.new(s.col, 100))
+            label.set_textcolor(s.lb, vis ? s.col : color.new(s.col, 100))
+            claims.push(s.price)
+
+if not na(dataHiLn)
+    line.set_x2(dataHiLn, bar_index + 1)
+    label.set_x(dataHiLb, bar_index + 1)
+    bool vis = not f_claimed(dataHiPrice)
+    line.set_color(dataHiLn, vis ? colData : color.new(colData, 100))
+    label.set_textcolor(dataHiLb, vis ? colData : color.new(colData, 100))
+if not na(dataLoLn)
+    line.set_x2(dataLoLn, bar_index + 1)
+    label.set_x(dataLoLb, bar_index + 1)
+    bool vis = not f_claimed(dataLoPrice)
+    line.set_color(dataLoLn, vis ? colData : color.new(colData, 100))
+    label.set_textcolor(dataLoLb, vis ? colData : color.new(colData, 100))
+
+// ═══════════════════════════ LINKED FVG ═══════════════════════════
+
+var box lfBullBox = na
+var int lfBullBorn = na
+var box lfBearBox = na
+var int lfBearBorn = na
+bool longSig = false
+bool shortSig = false
+
+// Chart-TF 3-candle FVG detection (confirmed bars only)
+if barstate.isconfirmed and bar_index > 2
+    if low > high[2]
+        cfvgs.push(CFvg.new(low, high[2], true, bar_index - 1))
+    if high < low[2]
+        cfvgs.push(CFvg.new(low[2], high, false, bar_index - 1))
+    while cfvgs.size() > 60
+        cfvgs.shift()
+
+// Inversion / mitigation on close-through
+if barstate.isconfirmed and cfvgs.size() > 0
+    for i = cfvgs.size() - 1 to 0
+        CFvg f = cfvgs.get(i)
+        if f.isBull and close < f.bottom
+            if lfShow and not na(lfBullBorn) and f.born == lfBullBorn and not na(dolLoVal)
+                shortSig := true
+            cfvgs.remove(i)
+        else if not f.isBull and close > f.top
+            if lfShow and not na(lfBearBorn) and f.born == lfBearBorn and not na(dolHiVal)
+                longSig := true
+            cfvgs.remove(i)
+
+// Relink: nearest bull FVG (by midpoint) to DOL.L, nearest bear FVG to DOL.H
+f_findNearest(bool wantBull, float target) =>
+    int bestBorn = na
+    float bestTop = na
+    float bestBot = na
+    float bestD = na
+    if not na(target) and cfvgs.size() > 0
+        for i = 0 to cfvgs.size() - 1
+            CFvg f = cfvgs.get(i)
+            if f.isBull == wantBull
+                float mid = (f.top + f.bottom) / 2
+                float d = math.abs(mid - target)
+                if na(bestD) or d < bestD
+                    bestD := d
+                    bestBorn := f.born
+                    bestTop := f.top
+                    bestBot := f.bottom
+    [bestBorn, bestTop, bestBot]
+
+if lfShow
+    [nbB, nbT, nbBo] = f_findNearest(true, dolLoVal)
+    if na(nbB)
+        box.delete(lfBullBox)
+        lfBullBox := na
+        lfBullBorn := na
+    else
+        if na(lfBullBorn) or nbB != lfBullBorn
+            box.delete(lfBullBox)
+            lfBullBox := box.new(nbB, nbT, bar_index, nbBo, border_color = color.new(color.white, 100), bgcolor = lfBullCol)
+            lfBullBorn := nbB
+        box.set_right(lfBullBox, bar_index)
+    [nrB, nrT, nrBo] = f_findNearest(false, dolHiVal)
+    if na(nrB)
+        box.delete(lfBearBox)
+        lfBearBox := na
+        lfBearBorn := na
+    else
+        if na(lfBearBorn) or nrB != lfBearBorn
+            box.delete(lfBearBox)
+            lfBearBox := box.new(nrB, nrT, bar_index, nrBo, border_color = color.new(color.white, 100), bgcolor = lfBearCol)
+            lfBearBorn := nrB
+        box.set_right(lfBearBox, bar_index)
+else
+    box.delete(lfBullBox)
+    lfBullBox := na
+    lfBullBorn := na
+    box.delete(lfBearBox)
+    lfBearBox := na
+    lfBearBorn := na
+
+// Directional bias markers + alerts
+if longSig
+    label.new(bar_index, low, "LONG ▲", style = label.style_label_up, color = color.new(#089981, 30), textcolor = color.white, size = size.tiny)
+    alert("SPS Lotion Model+: LONG bias — bearish linked FVG inverted with DOL.H in play", alert.freq_once_per_bar_close)
+if shortSig
+    label.new(bar_index, high, "SHORT ▼", style = label.style_label_down, color = color.new(#f23645, 30), textcolor = color.white, size = size.tiny)
+    alert("SPS Lotion Model+: SHORT bias — bullish linked FVG inverted with DOL.L in play", alert.freq_once_per_bar_close)
+
+alertcondition(longSig, "Linked FVG LONG bias", "Bearish linked FVG inverted — LONG bias")
+alertcondition(shortSig, "Linked FVG SHORT bias", "Bullish linked FVG inverted — SHORT bias")
+
+// ═══════════════════════════ WATERMARK ═══════════════════════════
+
+var table wm = table.new(position.bottom_center, 1, 3)
+if barstate.islast
+    if wmShow
+        table.cell(wm, 0, 0, "SPS Lotion Model+ (" + f_tfPretty() + ")", text_color = wmCol, text_size = size.normal)
+        table.cell(wm, 0, 1, syminfo.ticker, text_color = wmCol, text_size = size.small)
+        table.cell(wm, 0, 2, str.format_time(time, "dd MMM yyyy", TZ), text_color = wmCol, text_size = size.tiny)
+    else
+        table.clear(wm, 0, 0, 0, 2)
