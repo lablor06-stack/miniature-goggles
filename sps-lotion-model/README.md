@@ -26,7 +26,7 @@ su timeframe di esecuzione da 1 a 15 minuti.
 | **HTF FVG** | FVG non riempiti su timeframe superiore (default 5m), linee sul bordo prossimale con etichetta M5/H1, filtro weekend e min gap size |
 | **DOL** | Motore centrale: seleziona ogni barra un BSL sopra e un SSL sotto il prezzo da 5 sorgenti attivabili (HTF Swings, Data H/L, HTF FVG Edges, PDH/PDL, Session H/L) |
 | **Linked FVG** | Collega un FVG bullish al DOL.L e uno bearish al DOL.H; l'inversione in chiusura genera il bias direzionale (LONG/SHORT) con alert |
-| **Overlap merging** | Priorità DOL > PD > Sessions > Data: lo stesso prezzo non viene mai disegnato due volte |
+| **Overlap merging** | Lo stesso prezzo non viene mai disegnato due volte: i livelli nominati (PD > Sessioni > Data) mantengono la loro etichetta e il DOL si attenua quando coincide |
 | **Watermark** | Nome indicatore + timeframe, ticker e data in basso al centro |
 
 ## Consigli rapidi

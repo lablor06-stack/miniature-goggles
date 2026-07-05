@@ -8,6 +8,7 @@ indicator("SPS Lotion Model+", overlay = true, max_lines_count = 500, max_labels
 
 const string TZ = "America/New_York"
 const float DATA_WICK_PTS = 6.0
+const int EXT_BARS = 12
 
 // ═══════════════════════════ INPUTS ═══════════════════════════
 
@@ -85,10 +86,10 @@ string GF = "Fair Value Gaps (HTF)"
 bool fvgShow = input.bool(true, "Show", inline = "f0", group = GF)
 string fvgTf = input.timeframe("5", "Timeframe", inline = "f0", group = GF, tooltip = "Higher timeframe used for FVG detection")
 int fvgMaxVisible = input.int(1, "Max Visible per Side", minval = 1, maxval = 4, group = GF)
-bool fvgKeepAfterTap = input.bool(true, "Keep Lines After Tap", group = GF, tooltip = "Off = the proximal-edge guide line is removed at first touch")
+bool fvgKeepAfterTap = input.bool(false, "Keep Lines After Tap", group = GF, tooltip = "Off = the proximal-edge guide line is removed at first touch")
 float fvgMinGap = input.float(2.0, "Min Gap Size (pts)", minval = 0.0, group = GF)
-color fvgBullCol = input.color(#26a69a, "Bull", inline = "f1", group = GF)
-color fvgBearCol = input.color(#ef5350, "Bear", inline = "f1", group = GF)
+color fvgBullCol = input.color(#787b86, "Bull", inline = "f1", group = GF)
+color fvgBearCol = input.color(#787b86, "Bear", inline = "f1", group = GF)
 string fvgLineStyleIn = input.string("Solid", "Line Style", options = ["Solid", "Dotted", "Dashed"], inline = "f1", group = GF)
 color fvgLabelCol = input.color(#787b86, "Label Color", inline = "f2", group = GF)
 string fvgLabelSizeIn = input.string("Small", "Label Size", options = ["Tiny", "Small", "Normal", "Large"], inline = "f2", group = GF)
@@ -111,8 +112,8 @@ bool dolSrcSess = input.bool(false, "Session H/L", inline = "o5", group = GO, to
 // ----- Linked FVG -----
 string GL = "Linked FVG"
 bool lfShow = input.bool(true, "Show Linked FVGs", inline = "l0", group = GL, tooltip = "One bullish chart-TF FVG is linked to the lower DOL and one bearish FVG to the upper DOL")
-color lfBullCol = input.color(color.new(#089981, 85), "Bull FVG", inline = "l0", group = GL)
-color lfBearCol = input.color(color.new(#f23645, 85), "Bear FVG", inline = "l0", group = GL)
+color lfBullCol = input.color(color.new(#787b86, 75), "Bull FVG", inline = "l0", group = GL)
+color lfBearCol = input.color(color.new(#787b86, 75), "Bear FVG", inline = "l0", group = GL)
 
 // ----- Watermark -----
 string GW = "Watermark"
@@ -127,6 +128,7 @@ type SLvl
     float price
     bool isHigh
     color col
+    string name
 
 type EqLvl
     line ln
@@ -241,9 +243,17 @@ f_selectBelow(array<float> cands, float ref) =>
     na(best) ? anyBest : best
 
 f_newSessLvl(float price, bool isHigh, color col, string txt) =>
-    line ln = line.new(bar_index, price, bar_index + 1, price, color = col, style = f_lineStyle(sessLineStyleIn), width = 1)
-    label lb = label.new(bar_index + 1, price, txt, style = label.style_label_left, color = color.new(color.white, 100), textcolor = col, size = f_labelSize(sessLabelSizeIn))
-    sessLvls.push(SLvl.new(ln, lb, price, isHigh, col))
+    // keep only the most recent level per session name
+    if sessLvls.size() > 0
+        for i = sessLvls.size() - 1 to 0
+            SLvl old = sessLvls.get(i)
+            if old.name == txt
+                line.delete(old.ln)
+                label.delete(old.lb)
+                sessLvls.remove(i)
+    line ln = line.new(bar_index, price, bar_index + EXT_BARS, price, color = col, style = f_lineStyle(sessLineStyleIn), width = 1)
+    label lb = label.new(bar_index + EXT_BARS, price, txt, style = label.style_label_left, color = color.new(color.white, 100), textcolor = col, size = f_labelSize(sessLabelSizeIn))
+    sessLvls.push(SLvl.new(ln, lb, price, isHigh, col, txt))
 
 // Tracks one session window; draws its H/L levels once the session closes
 f_trackSession(bool enabled, color col, string sessTxt, string name) =>
@@ -304,11 +314,11 @@ if newDayNY
     pdlLn := na
     pdlLb := na
     if showPD and pdhActive
-        pdhLn := line.new(bar_index, pdhPrice, bar_index + 1, pdhPrice, color = colPDH, style = f_lineStyle(sessLineStyleIn), width = 1)
-        pdhLb := label.new(bar_index + 1, pdhPrice, "PD.H", style = label.style_label_left, color = color.new(color.white, 100), textcolor = colPDH, size = f_labelSize(sessLabelSizeIn))
+        pdhLn := line.new(bar_index, pdhPrice, bar_index + EXT_BARS, pdhPrice, color = colPDH, style = f_lineStyle(sessLineStyleIn), width = 1)
+        pdhLb := label.new(bar_index + EXT_BARS, pdhPrice, "PD.H", style = label.style_label_left, color = color.new(color.white, 100), textcolor = colPDH, size = f_labelSize(sessLabelSizeIn))
     if showPD and pdlActive
-        pdlLn := line.new(bar_index, pdlPrice, bar_index + 1, pdlPrice, color = colPDL, style = f_lineStyle(sessLineStyleIn), width = 1)
-        pdlLb := label.new(bar_index + 1, pdlPrice, "PD.L", style = label.style_label_left, color = color.new(color.white, 100), textcolor = colPDL, size = f_labelSize(sessLabelSizeIn))
+        pdlLn := line.new(bar_index, pdlPrice, bar_index + EXT_BARS, pdlPrice, color = colPDL, style = f_lineStyle(sessLineStyleIn), width = 1)
+        pdlLb := label.new(bar_index + EXT_BARS, pdlPrice, "PD.L", style = label.style_label_left, color = color.new(color.white, 100), textcolor = colPDL, size = f_labelSize(sessLabelSizeIn))
     dayHi := high
     dayLo := low
 else
@@ -399,13 +409,13 @@ if dataOn and not dataEval
         if d830h > d829h and d830h > d831h and upWick >= DATA_WICK_PTS
             dataHiPrice := d830h
             if showData
-                dataHiLn := line.new(bar_index, d830h, bar_index + 1, d830h, color = colData, style = f_lineStyle(dataLineStyleIn), width = 1)
-                dataHiLb := label.new(bar_index + 1, d830h, "DATA.H", style = label.style_label_left, color = color.new(color.white, 100), textcolor = colData, size = f_labelSize(dataLabelSizeIn))
+                dataHiLn := line.new(bar_index, d830h, bar_index + EXT_BARS, d830h, color = colData, style = f_lineStyle(dataLineStyleIn), width = 1)
+                dataHiLb := label.new(bar_index + EXT_BARS, d830h, "DATA.H", style = label.style_label_left, color = color.new(color.white, 100), textcolor = colData, size = f_labelSize(dataLabelSizeIn))
         if d830l < d829l and d830l < d831l and dnWick >= DATA_WICK_PTS
             dataLoPrice := d830l
             if showData
-                dataLoLn := line.new(bar_index, d830l, bar_index + 1, d830l, color = colData, style = f_lineStyle(dataLineStyleIn), width = 1)
-                dataLoLb := label.new(bar_index + 1, d830l, "DATA.L", style = label.style_label_left, color = color.new(color.white, 100), textcolor = colData, size = f_labelSize(dataLabelSizeIn))
+                dataLoLn := line.new(bar_index, d830l, bar_index + EXT_BARS, d830l, color = colData, style = f_lineStyle(dataLineStyleIn), width = 1)
+                dataLoLb := label.new(bar_index + EXT_BARS, d830l, "DATA.L", style = label.style_label_left, color = color.new(color.white, 100), textcolor = colData, size = f_labelSize(dataLabelSizeIn))
 
 // Remove once price closes through
 if not na(dataHiPrice) and close > dataHiPrice
@@ -427,21 +437,21 @@ var array<line> midLns = array.new<line>()
 var array<label> midLbs = array.new<label>()
 
 if showMid and newDayNY
-    line mLn = line.new(bar_index, open, bar_index + 1, open, color = colMid, style = f_lineStyle(midStyleIn), width = midWidth)
+    line mLn = line.new(bar_index, open, bar_index + EXT_BARS, open, color = colMid, style = f_lineStyle(midStyleIn), width = midWidth)
     midLns.push(mLn)
     label mLb = na
     if midLabelOn
-        mLb := label.new(bar_index + 1, open, "00:00 " + str.format_time(time, "dd MMM", TZ), style = label.style_label_left, color = color.new(color.white, 100), textcolor = colMid, size = f_labelSize(midLabelSizeIn))
+        mLb := label.new(bar_index + EXT_BARS, open, "00:00 " + str.format_time(time, "dd MMM", TZ), style = label.style_label_left, color = color.new(color.white, 100), textcolor = colMid, size = f_labelSize(midLabelSizeIn))
     midLbs.push(mLb)
     while midLns.size() > midDaysKept + 1
         line.delete(midLns.shift())
         label.delete(midLbs.shift())
 
 if showMid and midLns.size() > 0
-    line.set_x2(midLns.last(), bar_index + 1)
+    line.set_x2(midLns.last(), bar_index + EXT_BARS)
     label lastMidLb = midLbs.last()
     if not na(lastMidLb)
-        label.set_x(lastMidLb, bar_index + 1)
+        label.set_x(lastMidLb, bar_index + EXT_BARS)
 
 if not showMid and midLns.size() > 0
     while midLns.size() > 0
@@ -588,10 +598,11 @@ if smtOn and smtGapOn and barstate.isconfirmed and bar_index > 2
     bool gBullC = cL > cH[2]
     bool gBearM = high < low[2]
     bool gBearC = cH < cL[2]
-    if gBullM != gBullC
+    // opposite-direction gap formation only: rare, high-signal divergence
+    if gBullM and gBearC
         label gLb = label.new(bar_index, low, "SMT gap", style = label.style_label_up, color = color.new(color.white, 100), textcolor = smtBullCol, size = size.tiny)
         smtGapLbs.push(gLb)
-    if gBearM != gBearC
+    if gBearM and gBullC
         label gLb = label.new(bar_index, high, "SMT gap", style = label.style_label_down, color = color.new(color.white, 100), textcolor = smtBearCol, size = size.tiny)
         smtGapLbs.push(gLb)
     while smtGapLbs.size() > smtMaxVisible
@@ -623,8 +634,8 @@ if eqShow and eqTfOk and barstate.isconfirmed
     if mHi >= 0
         float p = eqHiP.get(mHi)
         int b = eqHiB.get(mHi)
-        line eqLn = line.new(b, p, bar_index + 1, p, color = eqCol, style = f_lineStyle(eqLineStyleIn), width = 1)
-        label eqLb = label.new(bar_index + 1, p, "EQH", style = label.style_label_left, color = color.new(color.white, 100), textcolor = eqCol, size = f_labelSize(eqLabelSizeIn))
+        line eqLn = line.new(b, p, bar_index + EXT_BARS, p, color = eqCol, style = f_lineStyle(eqLineStyleIn), width = 1)
+        label eqLb = label.new(bar_index + EXT_BARS, p, "EQH", style = label.style_label_left, color = color.new(color.white, 100), textcolor = eqCol, size = f_labelSize(eqLabelSizeIn))
         eqLvls.push(EqLvl.new(eqLn, eqLb, p, true))
         eqHiP.remove(mHi)
         eqHiB.remove(mHi)
@@ -649,8 +660,8 @@ if eqShow and eqTfOk and barstate.isconfirmed
     if mLo >= 0
         float p = eqLoP.get(mLo)
         int b = eqLoB.get(mLo)
-        line eqLn = line.new(b, p, bar_index + 1, p, color = eqCol, style = f_lineStyle(eqLineStyleIn), width = 1)
-        label eqLb = label.new(bar_index + 1, p, "EQL", style = label.style_label_left, color = color.new(color.white, 100), textcolor = eqCol, size = f_labelSize(eqLabelSizeIn))
+        line eqLn = line.new(b, p, bar_index + EXT_BARS, p, color = eqCol, style = f_lineStyle(eqLineStyleIn), width = 1)
+        label eqLb = label.new(bar_index + EXT_BARS, p, "EQL", style = label.style_label_left, color = color.new(color.white, 100), textcolor = eqCol, size = f_labelSize(eqLabelSizeIn))
         eqLvls.push(EqLvl.new(eqLn, eqLb, p, false))
         eqLoP.remove(mLo)
         eqLoB.remove(mLo)
@@ -670,8 +681,8 @@ if eqLvls.size() > 0
             label.delete(e.lb)
             eqLvls.remove(i)
         else
-            line.set_x2(e.ln, bar_index + 1)
-            label.set_x(e.lb, bar_index + 1)
+            line.set_x2(e.ln, bar_index + EXT_BARS)
+            label.set_x(e.lb, bar_index + EXT_BARS)
 while eqLvls.size() > 30
     EqLvl eOld = eqLvls.shift()
     line.delete(eOld.ln)
@@ -686,8 +697,8 @@ bool fvgModuleOn = fvgShow or dolSrcFvg
 f_newHFvg(float top, float bottom, bool isBull) =>
     float prox = isBull ? top : bottom
     color fCol = isBull ? fvgBullCol : fvgBearCol
-    line fLn = line.new(bar_index, prox, bar_index + 1, prox, color = fCol, style = f_lineStyle(fvgLineStyleIn), width = 1)
-    label fLb = label.new(bar_index + 1, prox, f_tfLabel(fvgTf) + " FVG", style = label.style_label_left, color = color.new(color.white, 100), textcolor = fvgLabelCol, size = f_labelSize(fvgLabelSizeIn))
+    line fLn = line.new(bar_index, prox, bar_index + EXT_BARS, prox, color = fCol, style = f_lineStyle(fvgLineStyleIn), width = 1)
+    label fLb = label.new(bar_index + EXT_BARS, prox, f_tfLabel(fvgTf) + " FVG", style = label.style_label_left, color = color.new(color.white, 100), textcolor = fvgLabelCol, size = f_labelSize(fvgLabelSizeIn))
     hfvgs.push(HFvg.new(top, bottom, isBull, false, fLn, fLb))
     while hfvgs.size() > 40
         HFvg fOld = hfvgs.shift()
@@ -763,8 +774,8 @@ if hfvgs.size() > 0
         color fCol = f.isBull ? fvgBullCol : fvgBearCol
         line.set_color(f.ln, vis ? fCol : color.new(fCol, 100))
         label.set_textcolor(f.lb, vis ? fvgLabelCol : color.new(fvgLabelCol, 100))
-        line.set_x2(f.ln, bar_index + 1)
-        label.set_x(f.lb, bar_index + 1)
+        line.set_x2(f.ln, bar_index + EXT_BARS)
+        label.set_x(f.lb, bar_index + EXT_BARS)
 
 // ═══════════════════════════ DOL — DRAW ON LIQUIDITY ═══════════════════════════
 
@@ -845,64 +856,20 @@ if dolShow
     dolHiVal := f_selectAbove(upC, close)
     dolLoVal := f_selectBelow(dnC, close)
 
-// DOL lines & labels
-var line dolHiLn = na
-var label dolHiLb = na
-var int dolHiFrom = na
-var line dolLoLn = na
-var label dolLoLb = na
-var int dolLoFrom = na
-
-if not na(dolHiVal)
-    if na(dolHiLn)
-        dolHiLn := line.new(bar_index, dolHiVal, bar_index + 1, dolHiVal, color = dolUpCol, style = f_lineStyle(dolLineStyleIn), width = 3)
-        dolHiLb := label.new(bar_index + 1, dolHiVal, "DOL.H", style = label.style_label_left, color = color.new(color.white, 100), textcolor = dolUpCol, size = f_labelSize(dolLabelSizeIn))
-        dolHiFrom := bar_index
-    if dolHiVal != line.get_y1(dolHiLn)
-        dolHiFrom := bar_index
-    line.set_xy1(dolHiLn, dolHiFrom, dolHiVal)
-    line.set_xy2(dolHiLn, bar_index + 1, dolHiVal)
-    label.set_xy(dolHiLb, bar_index + 1, dolHiVal)
-else
-    line.delete(dolHiLn)
-    label.delete(dolHiLb)
-    dolHiLn := na
-    dolHiLb := na
-
-if not na(dolLoVal)
-    if na(dolLoLn)
-        dolLoLn := line.new(bar_index, dolLoVal, bar_index + 1, dolLoVal, color = dolDnCol, style = f_lineStyle(dolLineStyleIn), width = 3)
-        dolLoLb := label.new(bar_index + 1, dolLoVal, "DOL.L", style = label.style_label_left, color = color.new(color.white, 100), textcolor = dolDnCol, size = f_labelSize(dolLabelSizeIn))
-        dolLoFrom := bar_index
-    if dolLoVal != line.get_y1(dolLoLn)
-        dolLoFrom := bar_index
-    line.set_xy1(dolLoLn, dolLoFrom, dolLoVal)
-    line.set_xy2(dolLoLn, bar_index + 1, dolLoVal)
-    label.set_xy(dolLoLb, bar_index + 1, dolLoVal)
-else
-    line.delete(dolLoLn)
-    label.delete(dolLoLb)
-    dolLoLn := na
-    dolLoLb := na
-
-// ═══════════════ OVERLAP MERGING (DOL > PD > Sessions > Data) ═══════════════
+// ═══ OVERLAP MERGING (named levels render first; DOL dims duplicates) ═══
 
 claims.clear()
-if not na(dolHiVal)
-    claims.push(dolHiVal)
-if not na(dolLoVal)
-    claims.push(dolLoVal)
 
 if pdhActive and not na(pdhLn)
-    line.set_x2(pdhLn, bar_index + 1)
-    label.set_x(pdhLb, bar_index + 1)
+    line.set_x2(pdhLn, bar_index + EXT_BARS)
+    label.set_x(pdhLb, bar_index + EXT_BARS)
     bool vis = not f_claimed(pdhPrice)
     line.set_color(pdhLn, vis ? colPDH : color.new(colPDH, 100))
     label.set_textcolor(pdhLb, vis ? colPDH : color.new(colPDH, 100))
     claims.push(pdhPrice)
 if pdlActive and not na(pdlLn)
-    line.set_x2(pdlLn, bar_index + 1)
-    label.set_x(pdlLb, bar_index + 1)
+    line.set_x2(pdlLn, bar_index + EXT_BARS)
+    label.set_x(pdlLb, bar_index + EXT_BARS)
     bool vis = not f_claimed(pdlPrice)
     line.set_color(pdlLn, vis ? colPDL : color.new(colPDL, 100))
     label.set_textcolor(pdlLb, vis ? colPDL : color.new(colPDL, 100))
@@ -917,25 +884,66 @@ if sessLvls.size() > 0
             label.delete(s.lb)
             sessLvls.remove(i)
         else
-            line.set_x2(s.ln, bar_index + 1)
-            label.set_x(s.lb, bar_index + 1)
+            line.set_x2(s.ln, bar_index + EXT_BARS)
+            label.set_x(s.lb, bar_index + EXT_BARS)
             bool vis = not f_claimed(s.price)
             line.set_color(s.ln, vis ? s.col : color.new(s.col, 100))
             label.set_textcolor(s.lb, vis ? s.col : color.new(s.col, 100))
             claims.push(s.price)
 
 if not na(dataHiLn)
-    line.set_x2(dataHiLn, bar_index + 1)
-    label.set_x(dataHiLb, bar_index + 1)
+    line.set_x2(dataHiLn, bar_index + EXT_BARS)
+    label.set_x(dataHiLb, bar_index + EXT_BARS)
     bool vis = not f_claimed(dataHiPrice)
     line.set_color(dataHiLn, vis ? colData : color.new(colData, 100))
     label.set_textcolor(dataHiLb, vis ? colData : color.new(colData, 100))
+    claims.push(dataHiPrice)
 if not na(dataLoLn)
-    line.set_x2(dataLoLn, bar_index + 1)
-    label.set_x(dataLoLb, bar_index + 1)
+    line.set_x2(dataLoLn, bar_index + EXT_BARS)
+    label.set_x(dataLoLb, bar_index + EXT_BARS)
     bool vis = not f_claimed(dataLoPrice)
     line.set_color(dataLoLn, vis ? colData : color.new(colData, 100))
     label.set_textcolor(dataLoLb, vis ? colData : color.new(colData, 100))
+    claims.push(dataLoPrice)
+
+// DOL lines & labels — projected from the current bar into the right margin,
+// dimmed when the level duplicates an already-drawn named level
+var line dolHiLn = na
+var label dolHiLb = na
+var line dolLoLn = na
+var label dolLoLb = na
+
+if not na(dolHiVal)
+    color upc = f_claimed(dolHiVal) ? color.new(dolUpCol, 100) : dolUpCol
+    if na(dolHiLn)
+        dolHiLn := line.new(bar_index, dolHiVal, bar_index + EXT_BARS, dolHiVal, color = upc, style = f_lineStyle(dolLineStyleIn), width = 2)
+        dolHiLb := label.new(bar_index + EXT_BARS, dolHiVal, "DOL.H", style = label.style_label_left, color = color.new(color.white, 100), textcolor = upc, size = f_labelSize(dolLabelSizeIn))
+    line.set_xy1(dolHiLn, bar_index, dolHiVal)
+    line.set_xy2(dolHiLn, bar_index + EXT_BARS, dolHiVal)
+    line.set_color(dolHiLn, upc)
+    label.set_xy(dolHiLb, bar_index + EXT_BARS, dolHiVal)
+    label.set_textcolor(dolHiLb, upc)
+else
+    line.delete(dolHiLn)
+    label.delete(dolHiLb)
+    dolHiLn := na
+    dolHiLb := na
+
+if not na(dolLoVal)
+    color dnc = f_claimed(dolLoVal) ? color.new(dolDnCol, 100) : dolDnCol
+    if na(dolLoLn)
+        dolLoLn := line.new(bar_index, dolLoVal, bar_index + EXT_BARS, dolLoVal, color = dnc, style = f_lineStyle(dolLineStyleIn), width = 2)
+        dolLoLb := label.new(bar_index + EXT_BARS, dolLoVal, "DOL.L", style = label.style_label_left, color = color.new(color.white, 100), textcolor = dnc, size = f_labelSize(dolLabelSizeIn))
+    line.set_xy1(dolLoLn, bar_index, dolLoVal)
+    line.set_xy2(dolLoLn, bar_index + EXT_BARS, dolLoVal)
+    line.set_color(dolLoLn, dnc)
+    label.set_xy(dolLoLb, bar_index + EXT_BARS, dolLoVal)
+    label.set_textcolor(dolLoLb, dnc)
+else
+    line.delete(dolLoLn)
+    label.delete(dolLoLb)
+    dolLoLn := na
+    dolLoLb := na
 
 // ═══════════════════════════ LINKED FVG ═══════════════════════════
 
@@ -996,9 +1004,9 @@ if lfShow
     else
         if na(lfBullBorn) or nbB != lfBullBorn
             box.delete(lfBullBox)
-            lfBullBox := box.new(nbB, nbT, bar_index, nbBo, border_color = color.new(color.white, 100), bgcolor = lfBullCol)
+            lfBullBox := box.new(nbB, nbT, bar_index + EXT_BARS, nbBo, border_color = color.new(color.white, 100), bgcolor = lfBullCol)
             lfBullBorn := nbB
-        box.set_right(lfBullBox, bar_index)
+        box.set_right(lfBullBox, bar_index + EXT_BARS)
     [nrB, nrT, nrBo] = f_findNearest(false, dolHiVal)
     if na(nrB)
         box.delete(lfBearBox)
@@ -1007,9 +1015,9 @@ if lfShow
     else
         if na(lfBearBorn) or nrB != lfBearBorn
             box.delete(lfBearBox)
-            lfBearBox := box.new(nrB, nrT, bar_index, nrBo, border_color = color.new(color.white, 100), bgcolor = lfBearCol)
+            lfBearBox := box.new(nrB, nrT, bar_index + EXT_BARS, nrBo, border_color = color.new(color.white, 100), bgcolor = lfBearCol)
             lfBearBorn := nrB
-        box.set_right(lfBearBox, bar_index)
+        box.set_right(lfBearBox, bar_index + EXT_BARS)
 else
     box.delete(lfBullBox)
     lfBullBox := na
@@ -1020,10 +1028,10 @@ else
 
 // Directional bias markers + alerts
 if longSig
-    label.new(bar_index, low, "LONG ▲", style = label.style_label_up, color = color.new(#089981, 30), textcolor = color.white, size = size.tiny)
+    label.new(bar_index, low, "▲ LONG", style = label.style_label_up, color = color.new(color.white, 100), textcolor = #089981, size = size.tiny)
     alert("SPS Lotion Model+: LONG bias — bearish linked FVG inverted with DOL.H in play", alert.freq_once_per_bar_close)
 if shortSig
-    label.new(bar_index, high, "SHORT ▼", style = label.style_label_down, color = color.new(#f23645, 30), textcolor = color.white, size = size.tiny)
+    label.new(bar_index, high, "▼ SHORT", style = label.style_label_down, color = color.new(color.white, 100), textcolor = #f23645, size = size.tiny)
     alert("SPS Lotion Model+: SHORT bias — bullish linked FVG inverted with DOL.L in play", alert.freq_once_per_bar_close)
 
 alertcondition(longSig, "Linked FVG LONG bias", "Bearish linked FVG inverted — LONG bias")
