@@ -25,8 +25,10 @@ non ha seguito. È l'impronta cross-market dello sweep.
 - Correlazione strutturale altissima (stesso macro-flusso, membri sovrapposti), ma **beta
   settoriale diversa** (NQ tech-heavy): nelle giornate di rotazione settoriale la divergenza
   è *fondamentale*, non tecnica → SMT inaffidabile.
-- **Filtro di regime (obbligatorio):** correlazione rolling 20 periodi sul TF di lavoro
-  ≥ 0.7. Sotto: modulo in standby (il Pine lo espone in dashboard).
+- **Filtro di regime (obbligatorio):** correlazione rolling 20 periodi **dei rendimenti**
+  (mai dei livelli di prezzo: la correlazione tra livelli è spuriamente ≈1 per qualunque
+  coppia in trend — trappola classica) ≥ 0.55 sul TF di lavoro. Sotto: modulo in standby
+  (il Pine lo espone in dashboard).
 - YM come **tie-breaker**: se ES diverge da NQ, il lato confermato da 2 su 3 vince.
 
 ### 1.3 Le tre condizioni di qualità (tutte necessarie)

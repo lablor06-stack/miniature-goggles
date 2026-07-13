@@ -75,6 +75,12 @@ S08 (grading SMT) + S02 (seconda finestra).
 
 **Grade:** B = 0 punti (solo condizioni necessarie) → 0.25% · A = 1–2 → 0.35% · A+ = ≥2.5 → 0.50%.
 
+> **Nota anti-overfitting (Red Team M1/M4):** i pesi del grading sono convenzioni ragionate,
+> non stime — per questo determinano SOLO la size, mai la validità del trade. Il journal
+> registra ogni componente separatamente (RQ-2/5/10): dopo n≥100 i pesi si ristimano dai
+> dati con procedura R19. Le confluenze devono essere **ortogonali** (fonti informative
+> diverse): zone sovrapposte della stessa famiglia contano una volta sola (composite +0.5).
+
 ### 3.3 Esecuzione
 
 - Limit al CE del FVG di displacement (o bordo zona); validità fino a fine KZ.

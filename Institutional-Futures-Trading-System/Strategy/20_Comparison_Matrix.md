@@ -22,6 +22,11 @@
 
 Scala 1–5 per criterio. Punteggio = Σ(voto × peso).
 
+> **Nota di metodo (Red Team M2):** i voti C2/C3 derivano da stime a priori (Fase 2), non da
+> backtest — un bias ottimistico *comune* non altera l'ordinamento relativo (tutte le
+> candidate usano lo stesso metro), ma i livelli assoluti restano ipotesi: la rete di
+> sicurezza sui livelli è nelle soglie pre-registrate di `Testing/00` §5.
+
 ## 2. Matrice dei punteggi
 
 | Strategia | C1 | C2 | C3 | C4 | C5 | C6 | C7 | C8 | **Totale** |
@@ -96,6 +101,12 @@ lotto ha meccanismo (il "non fare nulla" è la posizione a expectancy massima).
 | **S05 ORB** | ✅ Promossa (integrata) | Unico rilevatore *precoce* di trend day con supporto E2: diventa il **modulo d'innesco del Setup B** |
 | **S01 Sweep Reversal** | ✅ **Promossa: spina dorsale del Setup A** | Miglior punteggio, meccanismo E1, geometria eccellente |
 | **S09 Trend Continuation** | ✅ **Promossa: spina dorsale del Setup B** | Complementare esatto di S01; miglior coda destra |
+
+> **Perché il lotto contiene candidate "destinate" a perdere (Red Team D1):** un processo di
+> selezione documentato richiede bocciature reali. S06/S07 non sono strawman: sono le
+> migliori versioni difendibili delle loro famiglie, e perdono per ragioni *strutturali*
+> (conflitto con V7, coda di regime) che il documento di ciascuna già evidenzia. Un lotto
+> di sole promosse sarebbe survivorship bias applicato a sé stessi.
 
 ### Il razionale di sintesi
 

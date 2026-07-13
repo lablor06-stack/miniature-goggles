@@ -132,7 +132,7 @@ string G8 = "8 · SMT Divergence"
 bool smtOn      = input.bool(true, "Enable SMT", group = G8)
 string smtSym   = input.symbol("CME_MINI:NQ1!", "Correlated symbol", group = G8)
 int  corrLen    = input.int(20, "Correlation length", minval = 10, maxval = 100, group = G8)
-float corrMin   = input.float(0.7, "Min rolling correlation", minval = 0.0, maxval = 1.0, step = 0.05, group = G8)
+float corrMin   = input.float(0.55, "Min rolling correlation (returns)", minval = 0.0, maxval = 1.0, step = 0.05, group = G8, tooltip = "Correlation of bar-to-bar RETURNS (price-level correlation is spuriously ~1 and would never gate). ES/NQ intraday returns typically 0.7-0.9; sector-rotation days < 0.5.")
 bool smtAtPools = input.bool(true, "Only signal SMT near a liquidity pool", group = G8)
 int  smtMax     = input.int(12, "Max SMT drawings", minval = 2, maxval = 40, group = G8)
 
@@ -146,8 +146,8 @@ string G10 = "10 · Signal Engine (Setup A / B)"
 bool sigOn     = input.bool(true, "Enable composite signals", group = G10)
 bool sigKzGate = input.bool(true, "Signals only inside kill zones", group = G10)
 bool sigUsePm  = input.bool(false, "Allow NY PM window for Setup A", group = G10)
-int  armWindow = input.int(12, "Max bars: sweep → MSS", minval = 4, maxval = 40, group = G10)
-int  armExpiry = input.int(40, "Armed setup expiry (bars)", minval = 10, maxval = 200, group = G10)
+int  armWindow = input.int(12, "Max bars: sweep → MSS", minval = 4, maxval = 40, group = G10, tooltip = "Bar-based window: meaning changes with chart TF. Recommended: M1≈25 · M5≈12 (default) · M15≈6.")
+int  armExpiry = input.int(40, "Armed setup expiry (bars)", minval = 10, maxval = 200, group = G10, tooltip = "Recommended: M1≈80 · M5≈40 (default) · M15≈16.")
 float minRr    = input.float(2.0, "Min R:R to flag valid — P12", minval = 0.5, step = 0.1, group = G10)
 
 string G11 = "11 · Dashboard & Statistics"
@@ -877,7 +877,9 @@ if smtOn
     corrPh := q1
     corrPl := q2
     corrCl := q3
-float corrVal = ta.correlation(close, corrCl, corrLen)
+// C1 fix (Red Team Review): correlation must be computed on RETURNS, not price levels —
+// two trending price series have level-correlation ≈ ±1 regardless of true co-movement.
+float corrVal = ta.correlation(ta.change(close), ta.change(corrCl), corrLen)
 bool corrOk = smtOn and not na(corrVal) and corrVal >= corrMin
 
 var float ownPh1 = na
@@ -1120,7 +1122,8 @@ if sigOn and barstate.isconfirmed
                 label.set_text(aVis.lbl, "SETUP A " + (aDir > 0 ? "LONG" : "SHORT") + " · " + aGrade + " · FILLED")
     if kzSigOk and regime != -1 and mssUpEvt and not na(lastSwpDnBi) and bar_index - lastSwpDnBi <= armWindow
         Zone z = f_lastFvgSince(lastSwpDnBi, 1)
-        if not na(z)
+        // C2 fix: enforce V6 (entry in the favorable half of the dealing range) when P/D module is on
+        if not na(z) and (not pdOn or na(rngEq) or (z.top + z.bot) / 2 <= rngEq)
             float entry = (z.top + z.bot) / 2
             float stp = lastSwpDnExt - buffPx
             float tgt = f_nearestPoolAbove(close)
@@ -1147,7 +1150,8 @@ if sigOn and barstate.isconfirmed
                 aAlertTxt := "IFTS Setup A LONG [" + aGrade + "] " + syminfo.ticker + " · entry " + str.tostring(entry, format.mintick) + " · stop " + str.tostring(stp, format.mintick) + " · target " + str.tostring(tgt, format.mintick) + " · RR " + rrTxt
     if kzSigOk and regime != 1 and mssDnEvt and not na(lastSwpUpBi) and bar_index - lastSwpUpBi <= armWindow
         Zone z = f_lastFvgSince(lastSwpUpBi, -1)
-        if not na(z)
+        // C2 fix: enforce V6 — short entries only in the premium half when P/D module is on
+        if not na(z) and (not pdOn or na(rngEq) or (z.top + z.bot) / 2 >= rngEq)
             float entry = (z.top + z.bot) / 2
             float stp = lastSwpUpExt + buffPx
             float tgt = f_nearestPoolBelow(close)

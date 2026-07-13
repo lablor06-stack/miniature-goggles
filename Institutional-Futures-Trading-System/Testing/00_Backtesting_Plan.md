@@ -77,6 +77,11 @@ regime?) secondo Manual/04 §7.
    NQ) — parametri conservativi documentati.
 6. Journal identico al live (stesso schema CSV): S2, S3, S4 producono dataset omogenei e
    cumulabili.
+7. **Mascheramento dell'epoca (Red Team M3):** dove possibile le giornate vengono servite
+   senza data visibile (script/assistente che rinomina i file); inoltre il successo del
+   replay si misura ANCHE sui no-trade (checklist rispettata nei giorni NT), non solo sui
+   trade — un replayer che "sa" che il 2024 è bull non può comunque battere il protocollo
+   inventando ingressi fuori regola.
 
 ## 7. Research Questions → studi
 

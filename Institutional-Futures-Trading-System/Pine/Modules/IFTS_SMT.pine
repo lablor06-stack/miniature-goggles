@@ -14,12 +14,13 @@ color COL_DIM  = #78848f
 string smtSym = input.symbol("CME_MINI:NQ1!", "Correlated symbol")
 int  pivLen   = input.int(3, "Pivot length — P1", minval = 2, maxval = 10)
 int  corrLen  = input.int(20, "Correlation length", minval = 10, maxval = 100)
-float corrMin = input.float(0.7, "Min rolling correlation", minval = 0.0, maxval = 1.0, step = 0.05)
+float corrMin = input.float(0.55, "Min rolling correlation (returns)", minval = 0.0, maxval = 1.0, step = 0.05, tooltip = "Computed on bar returns, not price levels (level correlation is spuriously ~1).")
 int  maxDraw  = input.int(16, "Max SMT drawings", minval = 2, maxval = 60)
 bool showBadge = input.bool(true, "Show correlation badge")
 
 [corrPh, corrPl, corrCl] = request.security(smtSym, timeframe.period, [ta.pivothigh(high, pivLen, pivLen), ta.pivotlow(low, pivLen, pivLen), close], lookahead = barmerge.lookahead_off)
-float corrVal = ta.correlation(close, corrCl, corrLen)
+// C1 fix (Red Team Review): returns correlation, not price-level correlation
+float corrVal = ta.correlation(ta.change(close), ta.change(corrCl), corrLen)
 bool corrOk = not na(corrVal) and corrVal >= corrMin
 
 float ph = ta.pivothigh(high, pivLen, pivLen)

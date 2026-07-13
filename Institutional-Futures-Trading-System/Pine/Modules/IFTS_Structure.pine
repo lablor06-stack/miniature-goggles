@@ -122,8 +122,8 @@ if barstate.isconfirmed and msShowExt
     if se.chochDn
         f_draw(se.loBi, se.lo, "MSS·ext ▼", color.new(COL_BEAR, 0))
 
-plotshape(msShowSwings and si.newPh, "Swing high", style = shape.circle, location = location.abovebar, color = color.new(COL_BEAR, 60), size = size.tiny, offset = -3)
-plotshape(msShowSwings and si.newPl, "Swing low", style = shape.circle, location = location.belowbar, color = color.new(COL_BULL, 60), size = size.tiny, offset = -3)
+plotshape(msShowSwings and si.newPh, "Swing high", style = shape.circle, location = location.abovebar, color = color.new(COL_BEAR, 60), size = size.tiny, offset = -msIntLen)
+plotshape(msShowSwings and si.newPl, "Swing low", style = shape.circle, location = location.belowbar, color = color.new(COL_BULL, 60), size = size.tiny, offset = -msIntLen)
 
 alertcondition(si.bosUp, "IFTS·S · BOS up (int)", "Structure: internal bullish BOS")
 alertcondition(si.bosDn, "IFTS·S · BOS down (int)", "Structure: internal bearish BOS")

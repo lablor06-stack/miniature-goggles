@@ -20,7 +20,7 @@ stop,float,cond,,Stop iniziale
 target,float,cond,,Target (DOL) pianificato
 exit,float,cond,,Prezzo medio di uscita
 contracts,int,cond,,Numero contratti (micro contati come tali)
-risk_r,float,cond,,Rischio pianificato in % equity (0.25/0.35/0.50)
+risk_r,float,cond,,Rischio pianificato in % equity (0.25/0.35/0.50) — N.B. e' una percentuale non un valore in R
 result_r,float,cond,,Risultato in R (negativo se perdita; 0 per BE)
 mae_r,float,no,,Maximum Adverse Excursion in R
 mfe_r,float,no,,Maximum Favorable Excursion in R

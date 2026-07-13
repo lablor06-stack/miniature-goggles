@@ -53,12 +53,22 @@ Ogni modulo ha il proprio flag `enable`: **spento = zero calcoli non-primitivi e
 
 ## 5. Limiti dichiarati (leggere prima di lamentarsi 🙂)
 
+- **Il Signal Engine NON è il sistema completo:** implementa i livelli 5-6 dello stack
+  (trigger + geometria); i livelli 0-4 (calendario, bias, mappa, regime, narrativa) restano
+  al trader con le checklist del Manuale. Un alert "Setup A armed" senza pre-market alle
+  spalle è un input, non un ordine.
 - I pivot confermano N barre dopo: gli swing "si vedono" con ritardo strutturale.
-- Le statistiche coprono solo le barre caricate dal chart (~20k barre): campione locale.
-- Il classificatore di regime è un'euristica di assistenza — la decisione resta al trader
-  (ADR-1); il valore proxy della "value area" usa i quartili del range del giorno precedente
-  quando il volume profile non è disponibile via Pine.
-- Su simboli senza volume (indici cash) il VWAP si disattiva con avviso in dashboard.
+- Le statistiche coprono solo le barre caricate dal chart (~20k): campione locale.
+- Il classificatore di regime è un'euristica di assistenza (ADR-5); il proxy "open fuori
+  valore" usa il range del giorno precedente, non la VA vera (non disponibile in Pine).
+- Il vincolo P/D del Signal Engine usa il dealing range del TF del chart (il modello lo
+  definisce su M15): su M1-M5 è più severo, su M15 coincide — deviazione dichiarata (C2).
+- Pool PDH/PDL creati alla chiusura della prima barra della nuova sessione (1 barra di lag).
+- L'attesa dell'inducement (Core Model §3.3) non è codificata: resta procedura umana.
+- Il Setup B parte a IB completa (10:30), scelta più conservativa della finestra 10:00 del
+  modello.
+- Su simboli senza volume (indici cash) il VWAP si disattiva senza errori.
+- Le finestre in barre (armWindow/armExpiry) cambiano significato col TF: vedere i tooltip.
 
 ## 6. Convenzioni di codice
 

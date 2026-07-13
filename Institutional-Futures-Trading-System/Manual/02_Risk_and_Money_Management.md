@@ -69,20 +69,24 @@ rispettando i limiti).
 
 ## 4. Gestione della posizione (aritmetica dei parziali)
 
-Modello A (1/3+1/3+1/3): con TP1 a ~1.5R, TP2 a ~2.5-3R, runner variabile:
+Modello A (1/3+1/3+1/3) con TP1 ≈ 1.5R, TP2 ≈ 2.5R, runner variabile — aritmetica esatta:
 
-| Scenario | Esito ponderato |
-|---|---|
-| Stop pieno | −1.0R |
-| TP1 poi BE | +0.5R − 0 − 0 ≈ +0.5R |
-| TP1+TP2 poi BE runner | ~+1.4R |
-| Full target (runner 4R) | ~+2.6R |
+| Scenario | Calcolo | Esito | Peso ipotizzato | Contributo |
+|---|---|---|---|---|
+| Stop pieno | −1R | −1.00R | 30% | −0.300R |
+| TP1 poi BE | ⅓×1.5 | +0.50R | 20% | +0.100R |
+| TP1+TP2 poi BE runner | ⅓×1.5 + ⅓×2.5 | +1.33R | 30% | +0.400R |
+| Full target (runner ~4R) | ⅓×1.5 + ⅓×2.5 + ⅓×4 | +2.67R | 20% | +0.533R |
+| **Expectancy lorda** | | | 100% | **+0.73R** |
 
-Con distribuzione realistica degli scenari (30/20/30/20%), expectancy ≈ +0.9R lordo per
-trade vinto-misto, ≈ +0.35/0.5R netto sul totale — coerente con l'ipotesi del Core Model §10.
-**Nota:** il time-stop (R13) sposta parte dei "stop pieno" in perdite parziali (~−0.5R),
-migliorando l'expectancy più di qualunque ottimizzazione d'ingresso: è la regola più
-sottovalutata del sistema.
+Dal lordo teorico al netto atteso (+0.35/+0.5R, Core Model §10): si sottraggono i degradi
+misurabili — time-stop che converte parte degli scenari in ±0.3-0.5R misti, slippage
+(~0.03-0.06R/trade a 1-2 tick), errori di esecuzione residui (5% × costo medio). Il cuscino
+tra +0.73R teorico e +0.15R di soglia minima di accettazione (Testing/00 §5) è il margine di
+sicurezza del sistema.
+**Nota:** il time-stop (R13) sposta parte degli "stop pieno" verso perdite parziali (~−0.5R):
+a parità di tutto migliora l'expectancy più di qualunque rifinitura dell'ingresso — è la
+regola più sottovalutata del sistema.
 
 ## 5. Money management del conto
 
