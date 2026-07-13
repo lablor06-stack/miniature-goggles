@@ -1,0 +1,31 @@
+column,type,required,allowed_values,description
+date,date YYYY-MM-DD,yes,,Data del trade (giorno di NY)
+time_et,time HH:MM,yes,,Orario di ingresso ET (o del setup mancato)
+symbol,string,yes,ES|NQ|MES|MNQ,Strumento
+setup,string,yes,A|B|C|NT,Setup del Core Model (NT = giornata no-trade)
+grade,string,cond,B|A|A+,Grade assegnato PRIMA dell'ingresso
+direction,string,cond,long|short,Direzione
+killzone,string,yes,london|nyam|nypm|none,Finestra di appartenenza
+day_type,string,yes,rotation|trend_up|trend_dn|chop|news,Regime dichiarato (alle 10:30)
+bias_htf,string,yes,long|short|neutral,Bias HTF del pre-market
+trigger_type,string,cond,mss|bos,Trigger di struttura usato
+entry_zone,string,cond,fvg|ob|breaker|ifvg|mit|composite,Zona di ingresso
+sweep_grade,int,cond,0|1|2|3|4,Qualità dello sweep (Research/07 §8)
+smt,string,yes,bull|bear|none|na,SMT al momento del setup
+vwap_sigma,float,no,,σ-position all'ingresso (da dashboard)
+pd_position,int,no,,Percentile 0-100 nel dealing range M15
+of_confirm,string,yes,yes|no|nd,Conferma order flow (nd = non disponibile)
+entry,float,cond,,Prezzo di ingresso
+stop,float,cond,,Stop iniziale
+target,float,cond,,Target (DOL) pianificato
+exit,float,cond,,Prezzo medio di uscita
+contracts,int,cond,,Numero contratti (micro contati come tali)
+risk_r,float,cond,,Rischio pianificato in % equity (0.25/0.35/0.50)
+result_r,float,cond,,Risultato in R (negativo se perdita; 0 per BE)
+mae_r,float,no,,Maximum Adverse Excursion in R
+mfe_r,float,no,,Maximum Favorable Excursion in R
+duration_min,int,no,,Durata del trade in minuti
+rule_break,string,yes,none|E1..E10,Violazioni (tassonomia Manual/03 §2)
+missed,int,yes,0|1,Setup valido non eseguito (1 = mancato)
+tilt,int,yes,0|1,Protocollo tilt attivato oggi
+notes,string,no,,Nota libera (max 200 caratteri)
