@@ -29,8 +29,9 @@ float dispK     = input.float(1.5, "Displacement multiple — P4", minval = 1.0,
 bool obBodyOnly = input.bool(false, "Refined zone (body only)", group = "OB")
 int  obLookback = input.int(15, "OB origin scan-back", minval = 3, maxval = 40, group = "OB")
 int  obMax      = input.int(15, "Max OB-family boxes", minval = 4, maxval = 60, group = "OB")
-bool flipOn     = input.bool(true, "Enable polarity flips", group = "OB")
+bool flipOn     = input.bool(true, "Enable polarity flips", group = "OB", tooltip = "One flip per zone lifetime (FVG→IFVG, OB→Breaker); a second break retires the zone.")
 int  zoneMaxAge = input.int(900, "Zone max age (bars)", minval = 100, maxval = 5000, group = "OB")
+bool zGhosts    = input.bool(false, "Keep retired zones (dimmed)", group = "OB", tooltip = "Off (default): filled FVGs and invalidated blocks are removed — clean chart, smaller arrays. On: kept as dimmed ghosts for study.")
 
 float atrVal = ta.atr(14)
 float bodyAbs = math.abs(close - open)
@@ -71,6 +72,7 @@ type Zone
     int   state = 0
     int   bornBi
     bool  ceTouch = false
+    bool  flipped = false
 
 var array<Zone> fvgZones = array.new<Zone>()
 var array<Zone> obZones = array.new<Zone>()
@@ -100,6 +102,7 @@ f_zoneFlip(Zone z, int newKind) =>
     z.dir := -z.dir
     z.state := 0
     z.bornBi := bar_index
+    z.flipped := true
     [bgCol, brCol] = f_zoneColors(newKind, z.dir)
     if not na(z.bx)
         box.set_bgcolor(z.bx, bgCol)
@@ -108,17 +111,25 @@ f_zoneFlip(Zone z, int newKind) =>
     if not na(z.ce)
         line.set_color(z.ce, color.new(COL_DIM, 80))
 
-f_zoneKill(Zone z) =>
+// retire: dimmed ghost (study) or outright removal (default, clean chart).
+// state := 2 set in both paths so same-pass checks on a held reference see the zone dead.
+f_zoneRetire(array<Zone> arr, int i) =>
+    Zone z = arr.get(i)
     z.state := 2
-    if not na(z.bx)
-        box.set_extend(z.bx, extend.none)
-        box.set_right(z.bx, bar_index)
-        box.set_bgcolor(z.bx, color.new(COL_DIM, 92))
-        box.set_border_color(z.bx, color.new(COL_DIM, 80))
-    if not na(z.ce)
-        line.set_extend(z.ce, extend.none)
-        line.set_x2(z.ce, bar_index)
-        line.set_color(z.ce, color.new(COL_DIM, 85))
+    if zGhosts
+        if not na(z.bx)
+            box.set_extend(z.bx, extend.none)
+            box.set_right(z.bx, bar_index)
+            box.set_bgcolor(z.bx, color.new(COL_DIM, 92))
+            box.set_border_color(z.bx, color.new(COL_DIM, 80))
+        if not na(z.ce)
+            line.set_extend(z.ce, extend.none)
+            line.set_x2(z.ce, bar_index)
+            line.set_color(z.ce, color.new(COL_DIM, 85))
+    else
+        box.delete(z.bx)
+        line.delete(z.ce)
+        arr.remove(i)
 
 bool fvgBullNew = false
 bool fvgBearNew = false
@@ -168,26 +179,22 @@ f_zoneUpdate(array<Zone> arr, bool isFvg) =>
         while i >= 0
             Zone z = arr.get(i)
             if z.state < 2
-                if z.dir > 0
-                    if close < z.bot
-                        if flipOn
-                            f_zoneFlip(z, isFvg ? Z_IFV : Z_BRK)
-                        else
-                            f_zoneKill(z)
-                    else if low <= z.top and z.state == 0
-                        z.state := 1
-                        tBull := true
+                bool brokeFar = z.dir > 0 ? close < z.bot : close > z.top
+                if brokeFar
+                    if flipOn and not z.flipped
+                        f_zoneFlip(z, isFvg ? Z_IFV : Z_BRK)
+                    else
+                        f_zoneRetire(arr, i)
                 else
-                    if close > z.top
-                        if flipOn
-                            f_zoneFlip(z, isFvg ? Z_IFV : Z_BRK)
-                        else
-                            f_zoneKill(z)
-                    else if high >= z.bot and z.state == 0
+                    bool touched = z.dir > 0 ? low <= z.top : high >= z.bot
+                    if touched and z.state == 0
                         z.state := 1
-                        tBear := true
+                        if z.dir > 0
+                            tBull := true
+                        else
+                            tBear := true
                 if z.state < 2 and bar_index - z.bornBi > zoneMaxAge
-                    f_zoneKill(z)
+                    f_zoneRetire(arr, i)
             i -= 1
     [tBull, tBear]
 

@@ -16,6 +16,7 @@ float dispK        = input.float(1.5, "Displacement body multiple — P4", minva
 bool msClusterDisp = input.bool(true, "Accept 3-bar cluster displacement")
 bool msShowInt     = input.bool(true, "Show internal events")
 bool msShowExt     = input.bool(true, "Show external events")
+bool msShowChoch   = input.bool(false, "Show non-qualified CHoCH", tooltip = "Off by default: a CHoCH without displacement is an alert-level event, not a signal — drawing every one of them is visual noise (v2 UX policy).")
 bool msShowSwings  = input.bool(false, "Mark confirmed swing points")
 int  msMaxDraw     = input.int(60, "Max drawings kept", minval = 10, maxval = 250)
 
@@ -108,9 +109,9 @@ if barstate.isconfirmed and msShowInt
         f_draw(si.hiBi, si.hi, "MSS ▲", COL_BULL)
     if mssDnEvt
         f_draw(si.loBi, si.lo, "MSS ▼", COL_BEAR)
-    if si.chochUp and not dispUpEff
+    if msShowChoch and si.chochUp and not dispUpEff
         f_draw(si.hiBi, si.hi, "choch", color.new(COL_BULL, 55))
-    if si.chochDn and not dispDnEff
+    if msShowChoch and si.chochDn and not dispDnEff
         f_draw(si.loBi, si.lo, "choch", color.new(COL_BEAR, 55))
 if barstate.isconfirmed and msShowExt
     if se.bosUp
