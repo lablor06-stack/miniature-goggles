@@ -3,6 +3,37 @@
 Formato: [SemVer](https://semver.org/lang/it/). Le modifiche ai parametri canonici P1–P17
 richiedono bump minor + nota di validazione (vedi `Documentation/00_Conventions_and_Specs.md` §4).
 
+## [3.0.0] — 2026-07 · Decision Support System (state-driven; logica segnali invariata)
+
+Da indicatore object-driven a sistema di supporto decisionale: il grafico comunica lo STATO
+del ciclo di vita del trade e la prossima azione, non gli oggetti. Design completo in
+`Documentation/07_Decision_Support_System.md`.
+
+### Aggiunto
+- **Macchina a stati finiti (9 stati, uno alla volta):** Idle → Waiting Liquidity →
+  Liquidity Taken → Waiting MSS → Structure Confirmed → Waiting Retracement → Entry Ready →
+  Trade Active → Trade Closed; direzione d'ipotesi derivata da trade/setup/raid/bias.
+- **Confidence Engine pesato 0-100** (bias 20 · KZ 10 · sweep 15 · MSS 20 · SMT 10 · P/D 10
+  · VWAP 5 · FVG 5 · RR 5) — mostrato solo il totale; scomposizione in Debug.
+- **Execution Panel**: header merged DIREZIONE+CONFIDENZA con campitura direzionale,
+  Status, Next (evento richiesto), Entry/Stop/Target. Righe fisse, zero flicker.
+- **Trade tracker UI** con esito visivo (TARGET HIT / STOPPED / SESSION END): completa il
+  ciclo e riporta il grafico pulito; adotta anche i trigger Setup B (E/S/T derivati dai
+  valori già calcolati). Non tocca statistiche né journal.
+- **Modalità Debug** (progressive disclosure): stato interno, pesi, memorie, voti regime.
+
+### Cambiato
+- Visibilità guidata dallo stato in Execution: pool → sweep → zona d'ingresso (solo stati
+  5-6) → solo E/S/T in trade → chart pulito dopo l'uscita. OB boxes, EQ line, label di zona
+  e pannello on-chart rimossi da Execution (il panel narra); tutto resta in Analysis.
+- Modalità: Execution / Analysis / Debug (Analysis assorbe la vecchia Standard).
+- MSS disegnato in Execution solo se avanza la narrativa attiva (sweep alle spalle).
+
+### Invariato (compatibilità)
+- Tutte le condizioni di segnale, detection e calcoli; le 7 alertcondition e i payload
+  dinamici; statistiche RQ; zero repaint. `aState` viene azzerato al passaggio di consegne
+  al tracker (bookkeeping visivo dichiarato).
+
 ## [2.1.0] — 2026-07 · Visual experience redesign (logica invariata)
 
 Ridisegno completo del layer visivo del Master; Logic Layer identico a 2.0.0 (segnali,

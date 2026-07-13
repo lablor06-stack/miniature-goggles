@@ -24,26 +24,32 @@ oggetti separati, duplicazione limitata alle primitive e dichiarata
 3. Advanced → *Stop buffer*: 2 tick per ES, 4 per NQ (P16).
 4. Scegli la **Display mode** in General (sotto).
 
-## 3. Display modes (v2.1 — il cuore della UX)
+## 3. Decision Support System (v3 — state-driven)
+
+Il Master non è più un indicatore che mostra oggetti: è un DSS che comunica **lo stato del
+ciclo di vita del trade** e la **prossima azione**. Una macchina a stati finiti (9 stati,
+uno alla volta) + un **Confidence Engine** pesato 0-100 + un **Execution Panel**:
+
+```
+LONG   87%          ← direzione + confidenza (header colorato)
+Status  WAITING RETRACEMENT
+Next    Limit 6216.50
+Entry   6216.50 · Stop 6209.00 · Target 6248.00
+```
 
 | Modalità | Per chi | Cosa mostra |
 |---|---|---|
-| **Execution** *(default)* | Decidere adesso | Solo le 6 risposte (bias·liquidità·setup·entry·stop·target): pool primari PDH/PDL/Asia, **1 FVG + 1 OB per lato** (champion), VWAP nudo, evento strutturale corrente, pannello setup E/S/T. ~15-25 oggetti |
-| **Standard** | Operatività con contesto | + tutti i pool, BOS, testo zone, key opens, AVWAP |
-| **Analysis** | Studio e review | + choch, struttura esterna completa, bande VWAP ±σ, blocco statistiche RQ |
+| **Execution** *(default)* | Eseguire | Visibilità guidata dallo stato: pool primari (PDH/PDL/Asia) → marker SWEEP → MSS corrente → zona d'ingresso+OTE+E/S/T (armato) → solo E/S/T (in trade) → chart pulito (chiuso). VWAP sempre. ~12-20 oggetti |
+| **Analysis** | Studiare | Tutti gli oggetti analitici: pool completi, zone, BOS/choch, key opens, AVWAP, bande ±σ, statistiche RQ nel panel |
+| **Debug** | Sviluppare/verificare | Analysis + stato interno: id stato FSM, scomposizione confidence, memorie sweep, voti regime, correlazione SMT. **Mai in trading** |
 
-**Champion rendering (Execution):** gli array delle zone restano pieni per il Signal Engine
-(logica identica); viene *disegnata* solo la migliore per slot — FVG più recente attiva e
-OB più vicino al prezzo, per lato. Una zona migliore sostituisce la precedente sul grafico.
+**Stati:** Idle · Waiting Liquidity · Liquidity Taken · Waiting MSS · Structure Confirmed ·
+Waiting Retracement · Entry Ready · Trade Active · Trade Closed (esito: TARGET HIT /
+STOPPED / SESSION END, poi ritorno a chart pulito). Il **trade tracker** che rileva l'esito
+è livello UI: journal e statistiche restano il record di verità.
 
-**Smart visualization (tutte le modalità):** liquidità consumata e zone morte vengono
-**eliminate all'istante** (niente fading, niente ghost). Il marker giallo `SWEEP` è l'unica
-traccia del raid; la memoria interna del pool swept dura `Performance → Swept pool memory`
-(serve al filtro SMT), invisibile.
-
-**Visibilità adattiva (Execution):** idle → liquidità+VWAP · sweep → marker · MSS → zone
-champion · setup armato → SOLO pannello e linee E/S/T (le zone si ritirano) · fine trade →
-chart pulito.
+**Confidence (pesi fissi, somma 100):** bias 20 · KZ 10 · sweep 15 · MSS 20 · SMT 10 ·
+P/D 10 · VWAP 5 · FVG 5 · RR 5 — mostrato solo il totale (dettagli: `Documentation/07`).
 
 ## 4. Architettura (ordine di valutazione)
 
@@ -111,6 +117,12 @@ rimosso con la relativa riga dashboard; dashboard ridotta a 9 righe fisse (+stat
 Analysis); palette a 5 colori (VWAP bianco, liquidità giallo tenue, flip = bordo
 tratteggiato); bande VWAP solo in Analysis. Alert e semantica dei segnali invariati: gli
 alert esistenti continuano a funzionare senza ricrearli.
+
+**v2.1 → v3.0 (state-driven, logica segnali intoccata):** modalità → Execution / Analysis
+/ Debug (la vecchia Standard è assorbita da Analysis); la dashboard diventa l'Execution
+Panel (direzione+confidenza, Status, Next, E/S/T — le righe Grade/RR/SMT/σ vivono in
+confidenza e Debug); in Execution niente più OB boxes, EQ line e champion FVG permanenti:
+la zona d'ingresso appare solo negli stati 5-6. Alert invariati anche qui.
 
 ## 9. Checklist di compilazione/aggiornamento
 
