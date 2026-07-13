@@ -1,0 +1,132 @@
+//@version=6
+// ═════════════════════════════════════════════════════════════════════════════════════
+//  IFTS MODULE — MARKET STRUCTURE (standalone)
+//  Swings (P1/P2) · BOS · CHoCH · MSS (CHoCH + displacement P4) · dual scale
+//  Extracted from IFTS_Master; same canonical defaults. Deliberately self-contained
+//  (deployment isolation — see Documentation/01_System_Architecture.md §3.1).
+// ═════════════════════════════════════════════════════════════════════════════════════
+indicator("IFTS · Structure", overlay = true, max_lines_count = 300, max_labels_count = 300)
+
+color COL_BULL = #26a69a
+color COL_BEAR = #ef5350
+
+int  msIntLen      = input.int(3, "Internal swing length — P1", minval = 2, maxval = 10)
+int  msExtLen      = input.int(8, "External swing length — P2", minval = 5, maxval = 25)
+float dispK        = input.float(1.5, "Displacement body multiple — P4", minval = 1.0, step = 0.1)
+bool msClusterDisp = input.bool(true, "Accept 3-bar cluster displacement")
+bool msShowInt     = input.bool(true, "Show internal events")
+bool msShowExt     = input.bool(true, "Show external events")
+bool msShowSwings  = input.bool(false, "Mark confirmed swing points")
+int  msMaxDraw     = input.int(60, "Max drawings kept", minval = 10, maxval = 250)
+
+float bodyAbs = math.abs(close - open)
+float bodyAvg = ta.sma(bodyAbs, 20)
+float bodySum3 = math.sum(bodyAbs, 3)
+bool dispUpEff = (close > open and bodyAbs >= dispK * bodyAvg) or (msClusterDisp and close > close[3] and bodySum3 >= 2.0 * dispK * bodyAvg)
+bool dispDnEff = (close < open and bodyAbs >= dispK * bodyAvg) or (msClusterDisp and close < close[3] and bodySum3 >= 2.0 * dispK * bodyAvg)
+
+type StructOut
+    bool  bosUp = false
+    bool  bosDn = false
+    bool  chochUp = false
+    bool  chochDn = false
+    int   dir = 0
+    float hi = na
+    int   hiBi = na
+    float lo = na
+    int   loBi = na
+    bool  newPh = false
+    bool  newPl = false
+
+f_structure(int len) =>
+    float ph = ta.pivothigh(high, len, len)
+    float pl = ta.pivotlow(low, len, len)
+    var float lastHi = na
+    var int   lastHiBi = na
+    var bool  hiBroken = true
+    var float lastLo = na
+    var int   lastLoBi = na
+    var bool  loBroken = true
+    var int   trendDir = 0
+    StructOut o = StructOut.new()
+    if not na(ph)
+        lastHi := ph
+        lastHiBi := bar_index - len
+        hiBroken := false
+        o.newPh := true
+    if not na(pl)
+        lastLo := pl
+        lastLoBi := bar_index - len
+        loBroken := false
+        o.newPl := true
+    if barstate.isconfirmed
+        if not na(lastHi) and not hiBroken and close > lastHi
+            hiBroken := true
+            if trendDir < 0
+                o.chochUp := true
+            else
+                o.bosUp := true
+            trendDir := 1
+        if not na(lastLo) and not loBroken and close < lastLo
+            loBroken := true
+            if trendDir > 0
+                o.chochDn := true
+            else
+                o.bosDn := true
+            trendDir := -1
+    o.dir := trendDir
+    o.hi := lastHi
+    o.hiBi := lastHiBi
+    o.lo := lastLo
+    o.loBi := lastLoBi
+    o
+
+StructOut si = f_structure(msIntLen)
+StructOut se = f_structure(msExtLen)
+
+bool mssUpEvt = si.chochUp and dispUpEff
+bool mssDnEvt = si.chochDn and dispDnEff
+
+var array<line> lns = array.new<line>()
+var array<label> lbs = array.new<label>()
+
+f_draw(int fromBi, float px, string txt, color col) =>
+    if not na(px) and not na(fromBi)
+        lns.push(line.new(fromBi, px, bar_index, px, xloc = xloc.bar_index, color = col, width = 1, style = line.style_dashed))
+        lbs.push(label.new(bar_index, px, txt, xloc = xloc.bar_index, style = label.style_none, textcolor = col, size = size.tiny))
+        while lns.size() > msMaxDraw
+            line.delete(lns.shift())
+        while lbs.size() > msMaxDraw
+            label.delete(lbs.shift())
+
+if barstate.isconfirmed and msShowInt
+    if si.bosUp
+        f_draw(si.hiBi, si.hi, "BOS", color.new(COL_BULL, 30))
+    if si.bosDn
+        f_draw(si.loBi, si.lo, "BOS", color.new(COL_BEAR, 30))
+    if mssUpEvt
+        f_draw(si.hiBi, si.hi, "MSS ▲", COL_BULL)
+    if mssDnEvt
+        f_draw(si.loBi, si.lo, "MSS ▼", COL_BEAR)
+    if si.chochUp and not dispUpEff
+        f_draw(si.hiBi, si.hi, "choch", color.new(COL_BULL, 55))
+    if si.chochDn and not dispDnEff
+        f_draw(si.loBi, si.lo, "choch", color.new(COL_BEAR, 55))
+if barstate.isconfirmed and msShowExt
+    if se.bosUp
+        f_draw(se.hiBi, se.hi, "BOS·ext", color.new(COL_BULL, 10))
+    if se.bosDn
+        f_draw(se.loBi, se.lo, "BOS·ext", color.new(COL_BEAR, 10))
+    if se.chochUp
+        f_draw(se.hiBi, se.hi, "MSS·ext ▲", color.new(COL_BULL, 0))
+    if se.chochDn
+        f_draw(se.loBi, se.lo, "MSS·ext ▼", color.new(COL_BEAR, 0))
+
+plotshape(msShowSwings and si.newPh, "Swing high", style = shape.circle, location = location.abovebar, color = color.new(COL_BEAR, 60), size = size.tiny, offset = -3)
+plotshape(msShowSwings and si.newPl, "Swing low", style = shape.circle, location = location.belowbar, color = color.new(COL_BULL, 60), size = size.tiny, offset = -3)
+
+alertcondition(si.bosUp, "IFTS·S · BOS up (int)", "Structure: internal bullish BOS")
+alertcondition(si.bosDn, "IFTS·S · BOS down (int)", "Structure: internal bearish BOS")
+alertcondition(mssUpEvt, "IFTS·S · MSS up", "Structure: bullish MSS (CHoCH + displacement)")
+alertcondition(mssDnEvt, "IFTS·S · MSS down", "Structure: bearish MSS (CHoCH + displacement)")
+alertcondition(se.chochUp or se.chochDn, "IFTS·S · External shift", "Structure: external CHoCH")

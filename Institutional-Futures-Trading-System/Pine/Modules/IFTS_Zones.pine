@@ -1,0 +1,202 @@
+//@version=6
+// ═════════════════════════════════════════════════════════════════════════════════════
+//  IFTS MODULE — ZONES (standalone)
+//  FVG/IFVG (P5, CE) · OB/Mitigation on structure break · Breaker flip · lifecycle
+//  Extracted from IFTS_Master; same canonical defaults; self-contained by design.
+// ═════════════════════════════════════════════════════════════════════════════════════
+indicator("IFTS · Zones", overlay = true, max_boxes_count = 300, max_lines_count = 300)
+
+color COL_BULL = #26a69a
+color COL_BEAR = #ef5350
+color COL_BRK  = #ff9800
+color COL_MIT  = #90a4ae
+color COL_IFVG = #ab47bc
+color COL_DIM  = #78848f
+
+int Z_FVG = 1
+int Z_OB  = 2
+int Z_MIT = 3
+int Z_BRK = 4
+int Z_IFV = 5
+
+bool fvgOn      = input.bool(true, "Enable FVG / IFVG", group = "FVG")
+float fvgMinAtr = input.float(0.25, "FVG min size ×ATR — P5", minval = 0.0, step = 0.05, group = "FVG")
+bool fvgShowCe  = input.bool(true, "Show CE (50%) line", group = "FVG")
+int  fvgMax     = input.int(20, "Max FVG boxes", minval = 4, maxval = 80, group = "FVG")
+bool obOn       = input.bool(true, "Enable OB / Breaker / Mitigation", group = "OB")
+int  msIntLen   = input.int(3, "Structure swing length — P1", minval = 2, maxval = 10, group = "OB")
+float dispK     = input.float(1.5, "Displacement multiple — P4", minval = 1.0, step = 0.1, group = "OB")
+bool obBodyOnly = input.bool(false, "Refined zone (body only)", group = "OB")
+int  obLookback = input.int(15, "OB origin scan-back", minval = 3, maxval = 40, group = "OB")
+int  obMax      = input.int(15, "Max OB-family boxes", minval = 4, maxval = 60, group = "OB")
+bool flipOn     = input.bool(true, "Enable polarity flips", group = "OB")
+int  zoneMaxAge = input.int(900, "Zone max age (bars)", minval = 100, maxval = 5000, group = "OB")
+
+float atrVal = ta.atr(14)
+float bodyAbs = math.abs(close - open)
+float bodyAvg = ta.sma(bodyAbs, 20)
+bool dispUp = close > open and bodyAbs >= dispK * bodyAvg
+bool dispDn = close < open and bodyAbs >= dispK * bodyAvg
+
+// minimal structure: break of last confirmed internal swing
+float ph = ta.pivothigh(high, msIntLen, msIntLen)
+float pl = ta.pivotlow(low, msIntLen, msIntLen)
+var float lastHi = na
+var bool hiBroken = true
+var float lastLo = na
+var bool loBroken = true
+if not na(ph)
+    lastHi := ph
+    hiBroken := false
+if not na(pl)
+    lastLo := pl
+    loBroken := false
+bool brkUp = false
+bool brkDn = false
+if barstate.isconfirmed
+    if not na(lastHi) and not hiBroken and close > lastHi
+        hiBroken := true
+        brkUp := true
+    if not na(lastLo) and not loBroken and close < lastLo
+        loBroken := true
+        brkDn := true
+
+type Zone
+    box   bx = na
+    line  ce = na
+    float top
+    float bot
+    int   kind
+    int   dir
+    int   state = 0
+    int   bornBi
+    bool  ceTouch = false
+
+var array<Zone> fvgZones = array.new<Zone>()
+var array<Zone> obZones = array.new<Zone>()
+
+f_zoneColors(int kind, int zdir) =>
+    color base = kind == Z_FVG or kind == Z_OB ? (zdir > 0 ? COL_BULL : COL_BEAR) : kind == Z_MIT ? COL_MIT : kind == Z_BRK ? COL_BRK : COL_IFVG
+    [color.new(base, 82), color.new(base, 55)]
+
+f_zoneTxt(int kind) =>
+    kind == Z_FVG ? "FVG" : kind == Z_OB ? "OB" : kind == Z_MIT ? "MIT" : kind == Z_BRK ? "BRK" : "iFVG"
+
+f_zoneNew(array<Zone> arr, int leftBi, float top, float bot, int kind, int zdir, int capN) =>
+    Zone z = Zone.new(top = top, bot = bot, kind = kind, dir = zdir, bornBi = bar_index)
+    [bgCol, brCol] = f_zoneColors(kind, zdir)
+    z.bx := box.new(leftBi, top, bar_index + 1, bot, border_color = brCol, border_width = 1, bgcolor = bgCol, text = f_zoneTxt(kind), text_size = size.tiny, text_color = color.new(brCol, 25), text_halign = text.align_right, text_valign = text.align_center)
+    if kind == Z_FVG and fvgShowCe
+        z.ce := line.new(leftBi, (top + bot) / 2, bar_index + 1, (top + bot) / 2, xloc = xloc.bar_index, color = color.new(brCol, 40), width = 1, style = line.style_dotted)
+    arr.push(z)
+    while arr.size() > capN
+        Zone old = arr.shift()
+        box.delete(old.bx)
+        line.delete(old.ce)
+    z
+
+f_zoneFlip(Zone z, int newKind) =>
+    z.kind := newKind
+    z.dir := -z.dir
+    z.state := 0
+    z.bornBi := bar_index
+    [bgCol, brCol] = f_zoneColors(newKind, z.dir)
+    if not na(z.bx)
+        box.set_bgcolor(z.bx, bgCol)
+        box.set_border_color(z.bx, brCol)
+        box.set_text(z.bx, f_zoneTxt(newKind))
+    if not na(z.ce)
+        line.set_color(z.ce, color.new(COL_DIM, 80))
+
+f_zoneKill(Zone z) =>
+    z.state := 2
+    if not na(z.bx)
+        box.set_right(z.bx, bar_index)
+        box.set_bgcolor(z.bx, color.new(COL_DIM, 92))
+        box.set_border_color(z.bx, color.new(COL_DIM, 80))
+    if not na(z.ce)
+        line.set_x2(z.ce, bar_index)
+        line.set_color(z.ce, color.new(COL_DIM, 85))
+
+bool fvgBullNew = false
+bool fvgBearNew = false
+if fvgOn and barstate.isconfirmed
+    if low > high[2] and (low - high[2]) >= fvgMinAtr * atrVal
+        Zone zNew = f_zoneNew(fvgZones, bar_index - 2, low, high[2], Z_FVG, 1, fvgMax)
+        fvgBullNew := true
+    if high < low[2] and (low[2] - high) >= fvgMinAtr * atrVal
+        Zone zNew = f_zoneNew(fvgZones, bar_index - 2, low[2], high, Z_FVG, -1, fvgMax)
+        fvgBearNew := true
+
+f_obOverlap(float top, float bot, int zdir) =>
+    bool ov = false
+    for [idx, z] in obZones
+        if z.state < 2 and z.dir == zdir and not (bot > z.top or top < z.bot)
+            ov := true
+    ov
+
+if obOn and barstate.isconfirmed and brkUp and dispUp
+    int found = -1
+    for i = 1 to obLookback
+        if close[i] < open[i]
+            found := i
+            break
+    if found > 0
+        float zTop = open[found]
+        float zBot = obBodyOnly ? close[found] : low[found]
+        if zTop > zBot and not f_obOverlap(zTop, zBot, 1)
+            Zone zNew = f_zoneNew(obZones, bar_index - found, zTop, zBot, Z_OB, 1, obMax)
+if obOn and barstate.isconfirmed and brkDn and dispDn
+    int found = -1
+    for i = 1 to obLookback
+        if close[i] > open[i]
+            found := i
+            break
+    if found > 0
+        float zTop = obBodyOnly ? close[found] : high[found]
+        float zBot = open[found]
+        if zTop > zBot and not f_obOverlap(zTop, zBot, -1)
+            Zone zNew = f_zoneNew(obZones, bar_index - found, zTop, zBot, Z_OB, -1, obMax)
+
+f_zoneUpdate(array<Zone> arr, bool isFvg) =>
+    bool tBull = false
+    bool tBear = false
+    if barstate.isconfirmed
+        int i = arr.size() - 1
+        while i >= 0
+            Zone z = arr.get(i)
+            if z.state < 2
+                if not na(z.bx)
+                    box.set_right(z.bx, bar_index + 1)
+                if not na(z.ce)
+                    line.set_x2(z.ce, bar_index + 1)
+                if z.dir > 0
+                    if close < z.bot
+                        if flipOn
+                            f_zoneFlip(z, isFvg ? Z_IFV : Z_BRK)
+                        else
+                            f_zoneKill(z)
+                    else if low <= z.top and z.state == 0
+                        z.state := 1
+                        tBull := true
+                else
+                    if close > z.top
+                        if flipOn
+                            f_zoneFlip(z, isFvg ? Z_IFV : Z_BRK)
+                        else
+                            f_zoneKill(z)
+                    else if high >= z.bot and z.state == 0
+                        z.state := 1
+                        tBear := true
+                if z.state < 2 and bar_index - z.bornBi > zoneMaxAge
+                    f_zoneKill(z)
+            i -= 1
+    [tBull, tBear]
+
+[fvgTb, fvgTr] = f_zoneUpdate(fvgZones, true)
+[obTb, obTr] = f_zoneUpdate(obZones, false)
+
+alertcondition(fvgBullNew, "IFTS·Z · New bullish FVG", "Zones: bullish FVG formed (≥ P5)")
+alertcondition(fvgBearNew, "IFTS·Z · New bearish FVG", "Zones: bearish FVG formed (≥ P5)")
+alertcondition(fvgTb or obTb, "IFTS·Z · Support zone touch", "Zones: price tapped a support zone")
+alertcondition(fvgTr or obTr, "IFTS·Z · Resistance zone touch", "Zones: price tapped a resistance zone")

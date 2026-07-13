@@ -1,0 +1,90 @@
+//@version=6
+// ═════════════════════════════════════════════════════════════════════════════════════
+//  IFTS MODULE — PREMIUM / DISCOUNT (standalone)
+//  Algorithmic dealing range from external swings (P2) · EQ 50% · P/D shading ·
+//  OTE band (62–79%) on the current external leg · position readout
+// ═════════════════════════════════════════════════════════════════════════════════════
+indicator("IFTS · Premium-Discount", overlay = true, max_lines_count = 60, max_boxes_count = 30, max_labels_count = 30)
+
+color COL_BULL = #26a69a
+color COL_BEAR = #ef5350
+color COL_EQ   = #b0bec5
+
+int  msExtLen = input.int(8, "External swing length — P2", minval = 5, maxval = 25)
+bool shadeOn  = input.bool(true, "Shade premium/discount halves")
+bool oteOn    = input.bool(true, "Show OTE band (62–79%) on current leg — P7")
+bool lblOn    = input.bool(true, "Show range labels")
+
+float ph = ta.pivothigh(high, msExtLen, msExtLen)
+float pl = ta.pivotlow(low, msExtLen, msExtLen)
+var float extHi = na
+var int   extHiBi = na
+var float extLo = na
+var int   extLoBi = na
+if not na(ph)
+    extHi := ph
+    extHiBi := bar_index - msExtLen
+if not na(pl)
+    extLo := pl
+    extLoBi := bar_index - msExtLen
+
+float rngEq = (extHi + extLo) / 2
+float pdPct = not na(extHi) and not na(extLo) and extHi > extLo ? (close - extLo) / (extHi - extLo) * 100 : na
+string pdZone = na(pdPct) ? "—" : pdPct > 55 ? "PREMIUM" : pdPct < 45 ? "DISCOUNT" : "EQ"
+
+var line eqLn = na
+var line hiLn = na
+var line loLn = na
+var box pBox = na
+var box dBox = na
+var box oteBox = na
+var label posLb = na
+
+if barstate.islast and not na(extHi) and not na(extLo) and extHi > extLo
+    int x1 = math.min(nz(extHiBi, bar_index - 50), nz(extLoBi, bar_index - 50))
+    int x2 = bar_index + 10
+    if na(eqLn)
+        eqLn := line.new(x1, rngEq, x2, rngEq, xloc = xloc.bar_index, color = color.new(COL_EQ, 30), width = 1, style = line.style_dashed)
+        hiLn := line.new(x1, extHi, x2, extHi, xloc = xloc.bar_index, color = color.new(COL_BEAR, 40), width = 1)
+        loLn := line.new(x1, extLo, x2, extLo, xloc = xloc.bar_index, color = color.new(COL_BULL, 40), width = 1)
+    else
+        line.set_xy1(eqLn, x1, rngEq)
+        line.set_xy2(eqLn, x2, rngEq)
+        line.set_xy1(hiLn, x1, extHi)
+        line.set_xy2(hiLn, x2, extHi)
+        line.set_xy1(loLn, x1, extLo)
+        line.set_xy2(loLn, x2, extLo)
+    if shadeOn
+        if na(pBox)
+            pBox := box.new(x1, extHi, x2, rngEq, border_color = color.new(COL_BEAR, 90), bgcolor = color.new(COL_BEAR, 94))
+            dBox := box.new(x1, rngEq, x2, extLo, border_color = color.new(COL_BULL, 90), bgcolor = color.new(COL_BULL, 94))
+        else
+            box.set_lefttop(pBox, x1, extHi)
+            box.set_rightbottom(pBox, x2, rngEq)
+            box.set_lefttop(dBox, x1, rngEq)
+            box.set_rightbottom(dBox, x2, extLo)
+    if oteOn
+        // current leg: direction = which extreme is more recent
+        bool legUp = nz(extLoBi, 0) > nz(extHiBi, 0) ? false : true
+        // leg up = low older than high ⇒ retracement buys 62-79% down from high
+        float rng = extHi - extLo
+        float o1 = legUp ? extHi - 0.62 * rng : extLo + 0.62 * rng
+        float o2 = legUp ? extHi - 0.79 * rng : extLo + 0.79 * rng
+        if na(oteBox)
+            oteBox := box.new(x1, math.max(o1, o2), x2, math.min(o1, o2), border_color = color.new(COL_EQ, 70), border_width = 1, bgcolor = color.new(COL_EQ, 92), text = "OTE", text_size = size.tiny, text_color = color.new(COL_EQ, 40))
+        else
+            box.set_lefttop(oteBox, x1, math.max(o1, o2))
+            box.set_rightbottom(oteBox, x2, math.min(o1, o2))
+    if lblOn
+        string posTxt = pdZone + (na(pdPct) ? "" : " · " + str.tostring(pdPct, "#") + "%")
+        if na(posLb)
+            posLb := label.new(x2, close, posTxt, xloc = xloc.bar_index, style = label.style_label_left, color = color.new(COL_EQ, 80), textcolor = pdZone == "PREMIUM" ? COL_BEAR : pdZone == "DISCOUNT" ? COL_BULL : COL_EQ, size = size.small)
+        else
+            label.set_xy(posLb, x2, close)
+            label.set_text(posLb, posTxt)
+            label.set_textcolor(posLb, pdZone == "PREMIUM" ? COL_BEAR : pdZone == "DISCOUNT" ? COL_BULL : COL_EQ)
+
+bool eqCrossUp = ta.crossover(close, rngEq)
+bool eqCrossDn = ta.crossunder(close, rngEq)
+alertcondition(eqCrossUp, "IFTS·P · EQ cross up", "Premium-Discount: close crossed above equilibrium")
+alertcondition(eqCrossDn, "IFTS·P · EQ cross down", "Premium-Discount: close crossed below equilibrium")
