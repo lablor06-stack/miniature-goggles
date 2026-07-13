@@ -85,9 +85,9 @@ f_zoneTxt(int kind) =>
 f_zoneNew(array<Zone> arr, int leftBi, float top, float bot, int kind, int zdir, int capN) =>
     Zone z = Zone.new(top = top, bot = bot, kind = kind, dir = zdir, bornBi = bar_index)
     [bgCol, brCol] = f_zoneColors(kind, zdir)
-    z.bx := box.new(leftBi, top, bar_index + 1, bot, border_color = brCol, border_width = 1, bgcolor = bgCol, text = f_zoneTxt(kind), text_size = size.tiny, text_color = color.new(brCol, 25), text_halign = text.align_right, text_valign = text.align_center)
+    z.bx := box.new(leftBi, top, bar_index + 1, bot, border_color = brCol, border_width = 1, bgcolor = bgCol, extend = extend.right, text = f_zoneTxt(kind), text_size = size.tiny, text_color = color.new(brCol, 25), text_halign = text.align_right, text_valign = text.align_center)
     if kind == Z_FVG and fvgShowCe
-        z.ce := line.new(leftBi, (top + bot) / 2, bar_index + 1, (top + bot) / 2, xloc = xloc.bar_index, color = color.new(brCol, 40), width = 1, style = line.style_dotted)
+        z.ce := line.new(leftBi, (top + bot) / 2, bar_index + 1, (top + bot) / 2, xloc = xloc.bar_index, extend = extend.right, color = color.new(brCol, 40), width = 1, style = line.style_dotted)
     arr.push(z)
     while arr.size() > capN
         Zone old = arr.shift()
@@ -111,10 +111,12 @@ f_zoneFlip(Zone z, int newKind) =>
 f_zoneKill(Zone z) =>
     z.state := 2
     if not na(z.bx)
+        box.set_extend(z.bx, extend.none)
         box.set_right(z.bx, bar_index)
         box.set_bgcolor(z.bx, color.new(COL_DIM, 92))
         box.set_border_color(z.bx, color.new(COL_DIM, 80))
     if not na(z.ce)
+        line.set_extend(z.ce, extend.none)
         line.set_x2(z.ce, bar_index)
         line.set_color(z.ce, color.new(COL_DIM, 85))
 
@@ -166,10 +168,6 @@ f_zoneUpdate(array<Zone> arr, bool isFvg) =>
         while i >= 0
             Zone z = arr.get(i)
             if z.state < 2
-                if not na(z.bx)
-                    box.set_right(z.bx, bar_index + 1)
-                if not na(z.ce)
-                    line.set_x2(z.ce, bar_index + 1)
                 if z.dir > 0
                     if close < z.bot
                         if flipOn
