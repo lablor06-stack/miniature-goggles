@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="960" height="420" fill="#0d1117"/>
+  <text x="480" y="34" fill="#d7dde3" font-size="20" font-weight="bold" text-anchor="middle">IFTS · Mappa della giornata ES/NQ (orari ET, DST-safe)</text>
+
+  <!-- timeline base: 24h from 18:00 to 18:00, 900px wide, 30px start -->
+  <!-- scale: 37.5 px/h -->
+  <line x1="30" y1="200" x2="930" y2="200" stroke="#30363d" stroke-width="2"/>
+
+  <!-- hour ticks every 2h: 18 20 22 00 02 04 06 08 10 12 14 16 18 -->
+  <g fill="#78848f" font-size="11" text-anchor="middle">
+    <text x="30"  y="225">18</text><text x="105" y="225">20</text><text x="180" y="225">22</text>
+    <text x="255" y="225">00</text><text x="330" y="225">02</text><text x="405" y="225">04</text>
+    <text x="480" y="225">06</text><text x="555" y="225">08</text><text x="630" y="225">10</text>
+    <text x="705" y="225">12</text><text x="780" y="225">14</text><text x="855" y="225">16</text>
+    <text x="930" y="225">18</text>
+  </g>
+  <g stroke="#30363d" stroke-width="1">
+    <line x1="30" y1="195" x2="30" y2="205"/><line x1="105" y1="195" x2="105" y2="205"/>
+    <line x1="180" y1="195" x2="180" y2="205"/><line x1="255" y1="195" x2="255" y2="205"/>
+    <line x1="330" y1="195" x2="330" y2="205"/><line x1="405" y1="195" x2="405" y2="205"/>
+    <line x1="480" y1="195" x2="480" y2="205"/><line x1="555" y1="195" x2="555" y2="205"/>
+    <line x1="630" y1="195" x2="630" y2="205"/><line x1="705" y1="195" x2="705" y2="205"/>
+    <line x1="780" y1="195" x2="780" y2="205"/><line x1="855" y1="195" x2="855" y2="205"/>
+    <line x1="930" y1="195" x2="930" y2="205"/>
+  </g>
+
+  <!-- sessions above line -->
+  <!-- Asia 20-00: x 105..255 -->
+  <rect x="105" y="150" width="150" height="50" fill="#78848f" opacity="0.25"/>
+  <text x="180" y="180" fill="#d7dde3" font-size="12" text-anchor="middle">ASIA 20–00</text>
+  <text x="180" y="140" fill="#78848f" font-size="10" text-anchor="middle">range building · solo osservazione</text>
+
+  <!-- London KZ 02-05: x 330..442.5 -->
+  <rect x="330" y="150" width="112" height="50" fill="#2962ff" opacity="0.35"/>
+  <text x="386" y="180" fill="#d7dde3" font-size="12" text-anchor="middle">LONDON 02–05</text>
+  <text x="386" y="140" fill="#2962ff" font-size="10" text-anchor="middle">KZ operativa · Judas #1</text>
+
+  <!-- NY AM KZ 08:30-11: x 573.75..667.5 -->
+  <rect x="574" y="150" width="94" height="50" fill="#26a69a" opacity="0.4"/>
+  <text x="621" y="180" fill="#ffffff" font-size="12" text-anchor="middle" font-weight="bold">NY AM</text>
+  <text x="621" y="140" fill="#26a69a" font-size="10" text-anchor="middle" font-weight="bold">08:30–11:00 · FINESTRA PRIMARIA</text>
+
+  <!-- Lunch 12-13: 705..742.5 -->
+  <rect x="705" y="150" width="37" height="50" fill="#ef5350" opacity="0.3"/>
+  <text x="724" y="180" fill="#ef5350" font-size="10" text-anchor="middle">LUNCH</text>
+  <text x="724" y="140" fill="#ef5350" font-size="10" text-anchor="middle">NO-TRADE</text>
+
+  <!-- NY PM 13:30-16: 761.25..855 -->
+  <rect x="761" y="150" width="94" height="50" fill="#ff9800" opacity="0.3"/>
+  <text x="808" y="180" fill="#d7dde3" font-size="12" text-anchor="middle">NY PM 13:30–16</text>
+  <text x="808" y="140" fill="#ff9800" font-size="10" text-anchor="middle">Setup C · size ridotta</text>
+
+  <!-- markers below line -->
+  <g font-size="10" fill="#d7dde3">
+    <line x1="30" y1="200" x2="30" y2="260" stroke="#78848f" stroke-width="1"/>
+    <text x="34" y="258" fill="#78848f">18:00 Globex open · daily open</text>
+    <line x1="255" y1="200" x2="255" y2="285" stroke="#d7dde3" stroke-width="1"/>
+    <text x="259" y="283">00:00 Midnight open (True Day)</text>
+    <line x1="574" y1="200" x2="574" y2="310" stroke="#ef5350" stroke-width="1"/>
+    <text x="578" y="308" fill="#ef5350">08:30 news window (CPI/NFP…)</text>
+    <line x1="611" y1="200" x2="611" y2="260" stroke="#26a69a" stroke-width="1"/>
+    <text x="615" y="258" fill="#26a69a">09:30 RTH open</text>
+    <line x1="649" y1="200" x2="649" y2="285" stroke="#26a69a" stroke-width="1"/>
+    <text x="653" y="283" fill="#78848f">10:30 IB completa · regime deciso</text>
+    <line x1="780" y1="200" x2="780" y2="260" stroke="#ff9800" stroke-width="1"/>
+    <text x="784" y="258" fill="#ff9800">14:00 FOMC days</text>
+    <line x1="849" y1="200" x2="849" y2="285" stroke="#ef5350" stroke-width="1.5"/>
+    <text x="853" y="283" fill="#ef5350" font-weight="bold">15:50 FLAT (MOC)</text>
+    <line x1="893" y1="200" x2="893" y2="260" stroke="#78848f" stroke-width="1"/>
+    <text x="856" y="258" fill="#78848f">17:00 halt</text>
+  </g>
+
+  <!-- silver bullet strips -->
+  <g fill="#ab47bc" opacity="0.8">
+    <rect x="367" y="203" width="38" height="6"/>
+    <rect x="630" y="203" width="38" height="6"/>
+    <rect x="780" y="203" width="38" height="6"/>
+  </g>
+  <text x="480" y="340" fill="#ab47bc" font-size="11" text-anchor="middle">▮ finestre macro/Silver Bullet: 03–04 · 10–11 · 14–15 ET</text>
+
+  <text x="480" y="390" fill="#78848f" font-size="12" text-anchor="middle">Regola V1: ingressi SOLO nelle finestre colorate (London / NY AM / NY PM-C) · tutte le KZ pinned a America/New_York</text>
+</svg>

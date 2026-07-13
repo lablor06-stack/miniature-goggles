@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 480" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="960" height="480" fill="#0d1117"/>
+  <text x="480" y="34" fill="#d7dde3" font-size="20" font-weight="bold" text-anchor="middle">IFTS · Dealing Range: Premium / Discount come geometria del rischio</text>
+
+  <!-- range box -->
+  <rect x="140" y="80" width="500" height="150" fill="#ef5350" opacity="0.10"/>
+  <rect x="140" y="230" width="500" height="150" fill="#26a69a" opacity="0.10"/>
+  <line x1="140" y1="80" x2="640" y2="80" stroke="#ef5350" stroke-width="1.5"/>
+  <line x1="140" y1="230" x2="640" y2="230" stroke="#b0bec5" stroke-width="1.5" stroke-dasharray="7 4"/>
+  <line x1="140" y1="380" x2="640" y2="380" stroke="#26a69a" stroke-width="1.5"/>
+
+  <text x="650" y="85" fill="#ef5350" font-size="13" font-weight="bold">Swing esterno HIGH (P2=8)</text>
+  <text x="650" y="235" fill="#b0bec5" font-size="13" font-weight="bold">EQUILIBRIUM 50%</text>
+  <text x="650" y="385" fill="#26a69a" font-size="13" font-weight="bold">Swing esterno LOW (post-sweep)</text>
+
+  <text x="390" y="130" fill="#ef5350" font-size="15" text-anchor="middle" font-weight="bold">PREMIUM</text>
+  <text x="390" y="150" fill="#78848f" font-size="12" text-anchor="middle">solo SHORT · i long qui sono chasing per costruzione</text>
+  <text x="390" y="330" fill="#26a69a" font-size="15" text-anchor="middle" font-weight="bold">DISCOUNT</text>
+  <text x="390" y="350" fill="#78848f" font-size="12" text-anchor="middle">solo LONG · stop vicino all'invalidazione vera</text>
+
+  <!-- OTE band -->
+  <rect x="140" y="305" width="500" height="32" fill="#b0bec5" opacity="0.12" stroke="#b0bec5" stroke-opacity="0.4" stroke-dasharray="3 3"/>
+  <text x="650" y="326" fill="#78848f" font-size="12">OTE 62–79% del leg (P7) — solo raffinamento</text>
+
+  <!-- example trade geometry -->
+  <g>
+    <line x1="240" y1="322" x2="300" y2="322" stroke="#26a69a" stroke-width="3"/>
+    <text x="248" y="314" fill="#26a69a" font-size="12" font-weight="bold">entry (discount)</text>
+    <line x1="240" y1="396" x2="300" y2="396" stroke="#ef5350" stroke-width="2"/>
+    <text x="248" y="412" fill="#ef5350" font-size="12">stop (oltre il low + P16)</text>
+    <line x1="240" y1="235" x2="300" y2="235" stroke="#b0bec5" stroke-width="2"/>
+    <text x="305" y="250" fill="#b0bec5" font-size="12">TP1 = EQ</text>
+    <line x1="240" y1="86" x2="300" y2="86" stroke="#ef5350" stroke-width="2" stroke-dasharray="4 3"/>
+    <text x="305" y="100" fill="#78848f" font-size="12">TP2 = liquidità esterna (DOL)</text>
+    <!-- R measures -->
+    <line x1="225" y1="322" x2="225" y2="396" stroke="#ef5350" stroke-width="1"/>
+    <text x="218" y="362" fill="#ef5350" font-size="12" text-anchor="end">1R</text>
+    <line x1="210" y1="86" x2="210" y2="322" stroke="#26a69a" stroke-width="1"/>
+    <text x="203" y="210" fill="#26a69a" font-size="12" text-anchor="end">≈3.2R</text>
+  </g>
+
+  <rect x="700" y="120" width="220" height="230" rx="8" fill="#161b22" stroke="#30363d"/>
+  <text x="716" y="146" fill="#d7dde3" font-size="13" font-weight="bold">Perché funziona anche se</text>
+  <text x="716" y="163" fill="#d7dde3" font-size="13" font-weight="bold">EQ non "predicesse" nulla</text>
+  <text x="716" y="190" fill="#78848f" font-size="11">1. Schelling point: il 50% è</text>
+  <text x="716" y="205" fill="#78848f" font-size="11">   calcolato uguale da tutti</text>
+  <text x="716" y="228" fill="#78848f" font-size="11">2. Baricentro dell'inventory:</text>
+  <text x="716" y="243" fill="#78848f" font-size="11">   sopra/sotto EQ cambia chi</text>
+  <text x="716" y="258" fill="#78848f" font-size="11">   è in profitto e ricarica</text>
+  <text x="716" y="281" fill="#78848f" font-size="11">3. Geometria: dal discount lo</text>
+  <text x="716" y="296" fill="#78848f" font-size="11">   stop è vicino, il target è</text>
+  <text x="716" y="311" fill="#78848f" font-size="11">   lontano → R:R strutturale</text>
+  <text x="716" y="334" fill="#b0bec5" font-size="11">→ Research/10 §1.2</text>
+
+  <text x="480" y="448" fill="#78848f" font-size="12" text-anchor="middle">Regola cardine (V6): long solo in discount, short solo in premium — subordinata al bias HTF · range da swing esterni P2, wick inclusi</text>
+</svg>
