@@ -24,18 +24,26 @@ oggetti separati, duplicazione limitata alle primitive e dichiarata
 3. Advanced → *Stop buffer*: 2 tick per ES, 4 per NQ (P16).
 4. Scegli la **Display mode** in General (sotto).
 
-## 3. Display modes (novità v2 — il cuore della UX)
+## 3. Display modes (v2.1 — il cuore della UX)
 
 | Modalità | Per chi | Cosa mostra |
 |---|---|---|
-| **Focus** | Esecuzione live in KZ | Solo ciò che è tradabile ora: setup armati (entry/stop/target/OTE), MSS, pool attivi (label solo rank ≤ 2), sweep in KZ, VWAP, EQ, SMT. Dashboard 7 righe |
-| **Standard** *(default)* | Operatività quotidiana | + BOS interni, label pool e testo zone, key opens, bande σ, righe contesto in dashboard |
-| **Analysis** | Studio e review | + choch non qualificati, struttura esterna completa, **ghost** dimmerati di zone/pool ritirati, blocco statistiche RQ in dashboard |
+| **Execution** *(default)* | Decidere adesso | Solo le 6 risposte (bias·liquidità·setup·entry·stop·target): pool primari PDH/PDL/Asia, **1 FVG + 1 OB per lato** (champion), VWAP nudo, evento strutturale corrente, pannello setup E/S/T. ~15-25 oggetti |
+| **Standard** | Operatività con contesto | + tutti i pool, BOS, testo zone, key opens, AVWAP |
+| **Analysis** | Studio e review | + choch, struttura esterna completa, bande VWAP ±σ, blocco statistiche RQ |
 
-**Smart visualization (tutte le modalità):** un FVG riempito, un blocco invalidato o un pool
-consumato **escono dal grafico da soli** (in Analysis restano come ghost). Un pool "accepted"
-(prezzo che chiude oltre) sparisce subito: non è più liquidità. I pool swept restano per la
-finestra decisionale (`Performance → Swept pool TTL`, default 20 barre) poi escono.
+**Champion rendering (Execution):** gli array delle zone restano pieni per il Signal Engine
+(logica identica); viene *disegnata* solo la migliore per slot — FVG più recente attiva e
+OB più vicino al prezzo, per lato. Una zona migliore sostituisce la precedente sul grafico.
+
+**Smart visualization (tutte le modalità):** liquidità consumata e zone morte vengono
+**eliminate all'istante** (niente fading, niente ghost). Il marker giallo `SWEEP` è l'unica
+traccia del raid; la memoria interna del pool swept dura `Performance → Swept pool memory`
+(serve al filtro SMT), invisibile.
+
+**Visibilità adattiva (Execution):** idle → liquidità+VWAP · sweep → marker · MSS → zone
+champion · setup armato → SOLO pannello e linee E/S/T (le zone si ritirano) · fine trade →
+chart pulito.
 
 ## 4. Architettura (ordine di valutazione)
 
@@ -91,15 +99,18 @@ grading, non come alert): FVG nuovi, BOS/choch, zone touch, flip, SMT isolata, c
 - Le finestre in barre (Advanced) cambiano significato col TF — vedere i tooltip.
 - Su simboli senza volume il VWAP si disattiva senza errori.
 
-## 8. Migrazione v1 → v2 (breaking changes)
+## 8. Migrazione (breaking changes)
 
-1. **Input rinominati e riorganizzati** in 12 gruppi (General … Advanced): le impostazioni
-   salvate su chart con v1 vanno reimpostate (i default replicano P1-P17).
-2. **Alert da ricreare:** i 17 alert v1 non esistono più; creare i nuovi (lista §5).
-3. `statsOn` rimosso → modalità **Analysis**. `sigUsePm` rimosso (il PM è playbook manuale
-   Setup C). Ghost/oggetti storici → modalità Analysis.
-4. Nessun cambiamento a: definizioni degli eventi (P1-P17), statistiche RQ, semantica del
-   grading.
+**v1 → v2.0:** input riorganizzati in 12 gruppi (reimpostare le personalizzazioni; i default
+replicano P1-P17); i 17 alert v1 sostituiti dai 7 attuali (lista §5); `statsOn` → modalità
+Analysis; `sigUsePm` rimosso (il PM è playbook manuale Setup C).
+
+**v2.0 → v2.1 (solo visuale, logica intoccata):** modalità "Focus" sostituita da
+"**Execution**" (nuovo default); ghost rimossi ovunque (eliminazione immediata); `newsOk`
+rimosso con la relativa riga dashboard; dashboard ridotta a 9 righe fisse (+stats in
+Analysis); palette a 5 colori (VWAP bianco, liquidità giallo tenue, flip = bordo
+tratteggiato); bande VWAP solo in Analysis. Alert e semantica dei segnali invariati: gli
+alert esistenti continuano a funzionare senza ricrearli.
 
 ## 9. Checklist di compilazione/aggiornamento
 

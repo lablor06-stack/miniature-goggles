@@ -3,6 +3,38 @@
 Formato: [SemVer](https://semver.org/lang/it/). Le modifiche ai parametri canonici P1–P17
 richiedono bump minor + nota di validazione (vedi `Documentation/00_Conventions_and_Specs.md` §4).
 
+## [2.1.0] — 2026-07 · Visual experience redesign (logica invariata)
+
+Ridisegno completo del layer visivo del Master; Logic Layer identico a 2.0.0 (segnali,
+alert, statistiche, calcoli VWAP/SMT/zone/liquidità intoccati). Design system in
+`Documentation/06_UI_Design_System.md`.
+
+### Aggiunto
+- **Modalità EXECUTION (nuovo default):** solo liquidità decisiva (PDH/PDL/Asia H/L),
+  1 FVG + 1 OB per lato (champion rendering: gli array restano pieni per l'engine),
+  VWAP nudo, evento strutturale corrente, pannello setup unico con E/S/T. ~15-25 oggetti.
+- **Visibilità adattiva sul ciclo del trade:** liquidità → SWEEP → MSS+zone → pannello
+  E/S/T (le zone si ritirano) → chart pulito a fine trade.
+- Palette istituzionale a 5 colori semantici (verde/rosso/grigio/bianco-VWAP/giallo-liquidità);
+  zone flip distinte dal bordo tratteggiato, non da un colore in più.
+- Pannello setup professionale multiriga (SIDE · grade · RR · E/S/T) al posto di label sparse.
+
+### Cambiato
+- Dashboard ridisegnata: borderless, 9 righe fisse (Bias · Regime · P-D · VWAP σ · SMT ·
+  Setup · Grade · RR) + statistiche solo in Analysis; rimossi Session/News/sweep/struct.
+- Liquidità consumata e zone morte: **eliminate all'istante** (niente fading); i ghost di
+  Analysis rimossi; il marker giallo `SWEEP` resta l'unica traccia dell'evento.
+- Bande VWAP solo in Analysis; key opens/AVWAP/RTH-VWAP nascosti in Execution.
+- OTE disegnata solo a setup armato e rimossa al fill (oltre che a stop/target/scadenza).
+- Etichette −80%: solo SWEEP, MSS, pannello setup, 4 pool primari, SMT.
+- Input `newsOk` rimosso (riga dashboard eliminata); modalità "Focus" sostituita da
+  "Execution".
+
+### Corretto
+- La memoria interna dei pool swept ora ha lo stesso orizzonte TTL in ogni modalità: in
+  v2.0 i ghost di Analysis allungavano di fatto la memoria del filtro SMT near-pool — la
+  logica non deve dipendere dalla modalità di visualizzazione.
+
 ## [2.0.0] — 2026-07 · Audit "daily-driver" (nessuna feature nuova)
 
 Riscrittura completa di `IFTS_Master.pine` orientata a pulizia, velocità e uso quotidiano.
