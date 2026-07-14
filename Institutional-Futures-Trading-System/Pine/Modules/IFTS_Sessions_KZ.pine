@@ -1,0 +1,121 @@
+//@version=6
+// ═════════════════════════════════════════════════════════════════════════════════════
+//  IFTS MODULE — SESSIONS & KILL ZONES (standalone)
+//  ET-pinned sessions (DST-safe) · KZ shading · session H/L rays · key opens ·
+//  PDH/PDL & PWH/PWL · Initial Balance box
+// ═════════════════════════════════════════════════════════════════════════════════════
+indicator("IFTS · Sessions & KZ", overlay = true, max_lines_count = 300, max_labels_count = 300, max_boxes_count = 100)
+
+string NYTZ = "America/New_York"
+color COL_BULL = #26a69a
+color COL_BEAR = #ef5350
+color COL_VWAP = #2962ff
+color COL_BRK  = #ff9800
+color COL_TXT  = #d7dde3
+color COL_DIM  = #78848f
+
+bool kzOn      = input.bool(true, "Shade kill zones")
+string sAsia   = input.session("2000-0000", "Asia session")
+string sLdn    = input.session("0200-0500", "London KZ")
+string sNyAm   = input.session("0830-1100", "NY AM KZ")
+string sLunch  = input.session("1200-1300", "Lunch (no-trade)")
+string sNyPm   = input.session("1330-1600", "NY PM KZ")
+string sIb     = input.session("0930-1030", "Initial Balance")
+bool showSessHl = input.bool(true, "Session H/L rays (Asia/London)")
+bool showIb     = input.bool(true, "Initial Balance box")
+bool showOpens  = input.bool(true, "Key opens (Midnight/RTH/Weekly)")
+bool showPdw    = input.bool(true, "PDH/PDL · PWH/PWL")
+int  maxRays    = input.int(40, "Max level rays kept", minval = 8, maxval = 120)
+
+bool isLtf   = timeframe.in_seconds(timeframe.period) <= timeframe.in_seconds("60")
+bool inAsia  = isLtf and not na(time(timeframe.period, sAsia, NYTZ))
+bool inLdn   = isLtf and not na(time(timeframe.period, sLdn, NYTZ))
+bool inNyAm  = isLtf and not na(time(timeframe.period, sNyAm, NYTZ))
+bool inLunch = isLtf and not na(time(timeframe.period, sLunch, NYTZ))
+bool inNyPm  = isLtf and not na(time(timeframe.period, sNyPm, NYTZ))
+bool inRth   = isLtf and not na(time(timeframe.period, "0930-1600", NYTZ))
+bool inIb    = isLtf and not na(time(timeframe.period, sIb, NYTZ))
+
+int  nyDom    = dayofmonth(time, NYTZ)
+bool newNyDay = nyDom != nyDom[1]
+bool newRth   = inRth and not inRth[1]
+bool newWeek  = timeframe.change("W")
+bool newGlobex = timeframe.change("D")
+
+var float midnightOpen = na
+var float rthOpen = na
+var float weeklyOpen = na
+if newNyDay
+    midnightOpen := open
+if newRth
+    rthOpen := open
+if newWeek
+    weeklyOpen := open
+
+f_sessTrack(bool active) =>
+    var float sHi = na
+    var float sLo = na
+    if active and not active[1]
+        sHi := high
+        sLo := low
+    else if active
+        sHi := math.max(sHi, high)
+        sLo := math.min(sLo, low)
+    bool ended = active[1] and not active
+    [sHi, sLo, ended]
+
+[asiaHi, asiaLo, asiaEnd] = f_sessTrack(inAsia)
+[ldnHi, ldnLo, ldnEnd]    = f_sessTrack(inLdn)
+[ibHi, ibLo, ibEnd]       = f_sessTrack(inIb)
+
+var array<line> rays = array.new<line>()
+var array<label> rayLbs = array.new<label>()
+
+f_ray(float px, string txt, color col) =>
+    if not na(px)
+        rays.push(line.new(bar_index, px, bar_index + 1, px, xloc = xloc.bar_index, extend = extend.right, color = col, width = 1, style = line.style_dotted))
+        rayLbs.push(label.new(bar_index + 1, px, txt, xloc = xloc.bar_index, style = label.style_none, textcolor = color.new(col, 15), size = size.tiny))
+        while rays.size() > maxRays
+            line.delete(rays.shift())
+        while rayLbs.size() > maxRays
+            label.delete(rayLbs.shift())
+
+if barstate.isconfirmed and showSessHl
+    if asiaEnd
+        f_ray(asiaHi, "AS.H", COL_DIM)
+        f_ray(asiaLo, "AS.L", COL_DIM)
+    if ldnEnd
+        f_ray(ldnHi, "LDN.H", COL_VWAP)
+        f_ray(ldnLo, "LDN.L", COL_VWAP)
+
+// PDH/PDL · PWH/PWL from closed periods (no repaint)
+[pdHigh, pdLow] = request.security(syminfo.tickerid, "D", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+[pwHigh, pwLow] = request.security(syminfo.tickerid, "W", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+if barstate.isconfirmed and showPdw
+    if newGlobex and not na(pdHigh)
+        f_ray(pdHigh, "PDH", COL_BEAR)
+        f_ray(pdLow, "PDL", COL_BULL)
+    if newWeek and not na(pwHigh)
+        f_ray(pwHigh, "PWH", COL_BEAR)
+        f_ray(pwLow, "PWL", COL_BULL)
+
+// Initial Balance box (drawn once complete)
+var box ibBox = na
+if showIb and barstate.isconfirmed and ibEnd and not na(ibHi)
+    ibBox := box.new(bar_index - 1, ibHi, bar_index + 60, ibLo, border_color = color.new(COL_TXT, 55), border_width = 1, bgcolor = color.new(COL_TXT, 96), text = "IB", text_size = size.tiny, text_color = color.new(COL_TXT, 40), text_halign = text.align_left, text_valign = text.align_top)
+
+color kzShade = not kzOn ? na : inNyAm ? color.new(COL_BULL, 94) : inLdn ? color.new(COL_VWAP, 94) : inNyPm ? color.new(COL_BRK, 95) : inLunch ? color.new(COL_BEAR, 96) : na
+bgcolor(kzShade, title = "Kill zone shading")
+
+float moPlot = showOpens and not newNyDay ? midnightOpen : na
+float roPlot = showOpens and not newRth ? rthOpen : na
+float woPlot = showOpens and not newWeek ? weeklyOpen : na
+plot(moPlot, "Midnight open", color = color.new(COL_TXT, 55), style = plot.style_linebr)
+plot(roPlot, "RTH open", color = color.new(COL_BULL, 60), style = plot.style_linebr)
+plot(woPlot, "Weekly open", color = color.new(COL_BRK, 55), style = plot.style_linebr)
+
+bool kzNyStart = inNyAm and not inNyAm[1]
+bool kzLdnStart = inLdn and not inLdn[1]
+alertcondition(kzLdnStart, "IFTS·K · London KZ open", "Sessions: London kill zone started")
+alertcondition(kzNyStart, "IFTS·K · NY AM KZ open", "Sessions: NY AM kill zone started")
+alertcondition(ibEnd, "IFTS·K · IB complete", "Sessions: Initial Balance complete (10:30 ET)")

@@ -1,0 +1,93 @@
+//@version=6
+// ═════════════════════════════════════════════════════════════════════════════════════
+//  IFTS MODULE — VWAP SUITE (standalone)
+//  Session VWAP (Globex anchor) with volume-weighted σ bands · RTH VWAP ·
+//  AVWAP set: weekly open, monthly open, custom timestamp
+//  Bands use volume-weighted stdev (NOT plain stdev / NOT ATR) — see Research/04.
+// ═════════════════════════════════════════════════════════════════════════════════════
+indicator("IFTS · VWAP Suite", overlay = true)
+
+string NYTZ = "America/New_York"
+color COL_VWAP  = #2962ff
+color COL_AVWAP = #8d6e63
+color COL_BRK   = #ff9800
+
+bool vwapOn    = input.bool(true, "Session VWAP (Globex 18:00 anchor)")
+bool vwapBands = input.bool(true, "±1σ / ±2σ bands")
+bool vwapRthOn = input.bool(true, "RTH VWAP (09:30 anchor)")
+bool avwapWOn  = input.bool(true, "Weekly open AVWAP")
+bool avwapMOn  = input.bool(false, "Monthly open AVWAP")
+bool avwapCOn  = input.bool(false, "Custom anchor AVWAP")
+int  avwapCT   = input.time(timestamp("1 Jan 2026 09:30 -0500"), "Custom anchor time")
+
+bool hasVol = not na(volume)
+float srcV = hlc3
+bool newGlobex = timeframe.change("D")
+bool newWeek   = timeframe.change("W")
+bool newMonth  = timeframe.change("M")
+bool inRth  = not na(time(timeframe.period, "0930-1600", NYTZ))
+bool newRth = inRth and not inRth[1]
+
+var float sPV = na
+var float sV = na
+var float sPV2 = na
+if vwapOn and hasVol
+    if newGlobex or na(sPV)
+        sPV := srcV * volume
+        sV := volume
+        sPV2 := srcV * srcV * volume
+    else
+        sPV += srcV * volume
+        sV += volume
+        sPV2 += srcV * srcV * volume
+float sesVwap = vwapOn and hasVol and nz(sV) > 0 ? sPV / sV : na
+float sesSd = na
+if not na(sesVwap)
+    float vr = sPV2 / sV - sesVwap * sesVwap
+    sesSd := math.sqrt(math.max(vr, 0))
+float sigmaPos = not na(sesVwap) and nz(sesSd) > 0 ? (close - sesVwap) / sesSd : na
+
+var float rPV = na
+var float rV = na
+if vwapRthOn and hasVol
+    if newRth or na(rPV)
+        rPV := srcV * volume
+        rV := volume
+    else if inRth
+        rPV += srcV * volume
+        rV += volume
+float rthVwap = vwapRthOn and hasVol and inRth and nz(rV) > 0 ? rPV / rV : na
+
+f_avwap(bool resetCond, bool active) =>
+    var float aPV = na
+    var float aV = na
+    if active and hasVol
+        if resetCond or na(aPV)
+            aPV := srcV * volume
+            aV := volume
+        else
+            aPV += srcV * volume
+            aV += volume
+    active and nz(aV) > 0 ? aPV / aV : float(na)
+
+bool customAnchorHit = time >= avwapCT and time[1] < avwapCT
+float avwapW = f_avwap(newWeek, avwapWOn)
+float avwapM = f_avwap(newMonth, avwapMOn)
+float avwapC = f_avwap(customAnchorHit, avwapCOn)
+
+plot(sesVwap, "Session VWAP", color = color.new(COL_VWAP, 0), linewidth = 2, style = plot.style_linebr)
+plot(vwapBands ? sesVwap + sesSd : na, "VWAP +1σ", color = color.new(COL_VWAP, 65), style = plot.style_linebr)
+plot(vwapBands ? sesVwap - sesSd : na, "VWAP -1σ", color = color.new(COL_VWAP, 65), style = plot.style_linebr)
+plot(vwapBands ? sesVwap + 2 * sesSd : na, "VWAP +2σ", color = color.new(COL_VWAP, 45), style = plot.style_linebr)
+plot(vwapBands ? sesVwap - 2 * sesSd : na, "VWAP -2σ", color = color.new(COL_VWAP, 45), style = plot.style_linebr)
+plot(rthVwap, "RTH VWAP", color = color.new(COL_VWAP, 30), style = plot.style_linebr)
+plot(avwapW, "AVWAP weekly", color = color.new(COL_AVWAP, 15), style = plot.style_linebr)
+plot(avwapM, "AVWAP monthly", color = color.new(COL_AVWAP, 40), style = plot.style_linebr)
+plot(avwapC, "AVWAP custom", color = color.new(COL_BRK, 25), style = plot.style_linebr)
+
+bool x2Up = ta.crossover(close, sesVwap + 2 * sesSd)
+bool x2Dn = ta.crossunder(close, sesVwap - 2 * sesSd)
+alertcondition(x2Up, "IFTS·V · +2σ reached", "VWAP Suite: price crossed above +2σ band")
+alertcondition(x2Dn, "IFTS·V · -2σ reached", "VWAP Suite: price crossed below -2σ band")
+alertcondition(ta.crossover(close, sesVwap), "IFTS·V · VWAP reclaim", "VWAP Suite: close crossed above session VWAP")
+alertcondition(ta.crossunder(close, sesVwap), "IFTS·V · VWAP loss", "VWAP Suite: close crossed below session VWAP")

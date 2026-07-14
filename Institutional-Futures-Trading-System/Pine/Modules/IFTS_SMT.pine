@@ -1,0 +1,95 @@
+//@version=6
+// ═════════════════════════════════════════════════════════════════════════════════════
+//  IFTS MODULE — SMT DIVERGENCE (standalone)
+//  Confirmed-pivot divergence vs correlated symbol (±5 bar window) ·
+//  rolling-correlation regime filter (the piece most public SMT tools lack) ·
+//  see Research/12 for the defensible rationale (relative-strength at extremes)
+// ═════════════════════════════════════════════════════════════════════════════════════
+indicator("IFTS · SMT", overlay = true, max_lines_count = 100, max_labels_count = 100, dynamic_requests = true)
+
+color COL_BULL = #26a69a
+color COL_BEAR = #ef5350
+color COL_DIM  = #78848f
+
+string smtSym = input.symbol("CME_MINI:NQ1!", "Correlated symbol")
+int  pivLen   = input.int(3, "Pivot length — P1", minval = 2, maxval = 10)
+int  corrLen  = input.int(20, "Correlation length", minval = 10, maxval = 100)
+float corrMin = input.float(0.55, "Min rolling correlation (returns)", minval = 0.0, maxval = 1.0, step = 0.05, tooltip = "Computed on bar returns, not price levels (level correlation is spuriously ~1).")
+int  maxDraw  = input.int(16, "Max SMT drawings", minval = 2, maxval = 60)
+bool showBadge = input.bool(true, "Show correlation badge")
+
+[corrPh, corrPl, corrCl] = request.security(smtSym, timeframe.period, [ta.pivothigh(high, pivLen, pivLen), ta.pivotlow(low, pivLen, pivLen), close], lookahead = barmerge.lookahead_off)
+// C1 fix (Red Team Review): returns correlation, not price-level correlation
+float corrVal = ta.correlation(ta.change(close), ta.change(corrCl), corrLen)
+bool corrOk = not na(corrVal) and corrVal >= corrMin
+
+float ph = ta.pivothigh(high, pivLen, pivLen)
+float pl = ta.pivotlow(low, pivLen, pivLen)
+
+var float ownPh1 = na
+var float ownPh2 = na
+var int   ownPh1Bi = na
+var int   ownPh2Bi = na
+var float ownPl1 = na
+var float ownPl2 = na
+var int   ownPl1Bi = na
+var int   ownPl2Bi = na
+var float cPh1 = na
+var float cPh2 = na
+var int   cPh1Bi = na
+var float cPl1 = na
+var float cPl2 = na
+var int   cPl1Bi = na
+
+if not na(corrPh)
+    cPh2 := cPh1
+    cPh1 := corrPh
+    cPh1Bi := bar_index - pivLen
+if not na(corrPl)
+    cPl2 := cPl1
+    cPl1 := corrPl
+    cPl1Bi := bar_index - pivLen
+
+var array<line> lns = array.new<line>()
+var array<label> lbs = array.new<label>()
+
+f_draw(int x1, float y1, int x2, float y2, string txt, color col) =>
+    lns.push(line.new(x1, y1, x2, y2, xloc = xloc.bar_index, color = col, width = 2))
+    lbs.push(label.new(x2, y2, txt, xloc = xloc.bar_index, style = y1 > y2 ? label.style_label_up : label.style_label_down, color = color.new(col, 25), textcolor = color.white, size = size.tiny))
+    while lns.size() > maxDraw
+        line.delete(lns.shift())
+    while lbs.size() > maxDraw
+        label.delete(lbs.shift())
+
+bool smtBearEvt = false
+bool smtBullEvt = false
+if not na(ph)
+    if not na(ownPh1)
+        ownPh2 := ownPh1
+        ownPh2Bi := ownPh1Bi
+    ownPh1 := ph
+    ownPh1Bi := bar_index - pivLen
+    if corrOk and not na(ownPh2) and not na(cPh2) and not na(cPh1Bi) and math.abs(ownPh1Bi - cPh1Bi) <= 5
+        if ownPh1 > ownPh2 and cPh1 < cPh2
+            smtBearEvt := true
+            f_draw(ownPh2Bi, ownPh2, ownPh1Bi, ownPh1, "SMT ▼", COL_BEAR)
+if not na(pl)
+    if not na(ownPl1)
+        ownPl2 := ownPl1
+        ownPl2Bi := ownPl1Bi
+    ownPl1 := pl
+    ownPl1Bi := bar_index - pivLen
+    if corrOk and not na(ownPl2) and not na(cPl2) and not na(cPl1Bi) and math.abs(ownPl1Bi - cPl1Bi) <= 5
+        if ownPl1 < ownPl2 and cPl1 > cPl2
+            smtBullEvt := true
+            f_draw(ownPl2Bi, ownPl2, ownPl1Bi, ownPl1, "SMT ▲", COL_BULL)
+
+var table badge = na
+if showBadge
+    if na(badge)
+        badge := table.new(position.bottom_right, 1, 1, bgcolor = color.new(#0d1117, 25))
+    if barstate.islast
+        table.cell(badge, 0, 0, "SMT vs " + smtSym + " · corr " + str.tostring(nz(corrVal), "#.##") + (corrOk ? " ✓" : " ✗ (standby)"), text_color = corrOk ? color.new(COL_BULL, 10) : color.new(COL_DIM, 10), text_size = size.small)
+
+alertcondition(smtBullEvt, "IFTS·M · SMT bullish", "SMT: bullish divergence (correlation-gated)")
+alertcondition(smtBearEvt, "IFTS·M · SMT bearish", "SMT: bearish divergence (correlation-gated)")

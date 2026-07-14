@@ -1,0 +1,103 @@
+date,time_et,symbol,setup,grade,direction,killzone,day_type,bias_htf,trigger_type,entry_zone,sweep_grade,smt,vwap_sigma,pd_position,of_confirm,entry,stop,target,exit,contracts,risk_r,result_r,mae_r,mfe_r,duration_min,rule_break,missed,tilt,notes
+2026-03-02,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-03-03,10:04,ES,A,B,long,nyam,rotation,short,mss,fvg,2,bull,1.58,47,nd,6257.25,6251.75,6271.25,6251.75,5,0.25,-1.00,1.00,0.49,42,none,0,0,
+2026-03-04,10:04,NQ,A,A,long,london,trend_up,long,mss,fvg,3,none,1.65,67,no,22579.25,22536.25,22691.25,22609.00,1,0.35,0.69,0.56,0.79,42,none,0,0,
+2026-03-05,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-03-06,10:22,NQ,A,A,short,nyam,rotation,long,mss,fvg,3,none,2.17,67,no,22648.00,22616.50,22729.75,22624.25,4,0.35,-0.76,1.00,0.53,100,none,0,0,
+2026-03-06,03:24,ES,A,A,short,nyam,rotation,short,mss,breaker,4,na,-1.54,32,yes,6236.25,6229.25,6254.25,6245.00,2,0.35,1.26,0.83,1.37,15,none,0,0,
+2026-03-09,08:00,ES,NT,,,none,trend_up,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-03-09,09:55,ES,A,A,long,nyam,trend_up,long,mss,fvg,3,none,0.4,35,nd,,,,,,0.35,1.93,,,,none,1,0,hesitated
+2026-03-10,10:04,NQ,B,A,long,nyam,trend_up,long,bos,composite,2,bull,0.44,23,yes,22536.50,22504.50,22619.75,22508.75,2,0.35,-0.87,1.00,0.30,37,none,0,0,
+2026-03-10,13:52,NQ,C,A,short,nyam,trend_up,long,bos,ob,1,none,1.06,71,nd,22809.25,22764.50,22925.75,22859.50,2,0.35,1.12,0.62,1.98,17,none,0,0,
+2026-03-11,10:04,ES,B,A+,short,london,chop,long,bos,ob,2,na,1.06,39,yes,6216.50,6209.00,6236.25,6210.25,4,0.50,-0.83,1.00,0.25,103,none,0,0,
+2026-03-12,10:04,NQ,A,B,short,nypm,chop,long,mss,composite,1,none,0.67,20,nd,22518.75,22493.25,22585.00,22493.25,1,0.25,-1.00,1.00,0.04,111,none,0,0,
+2026-03-13,08:47,NQ,A,A,long,london,trend_dn,short,mss,ob,4,none,-0.66,80,nd,22351.00,22327.00,22413.25,22468.75,1,0.35,4.91,0.41,5.84,15,E9,0,0,
+2026-03-16,08:00,ES,NT,,,none,trend_dn,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-03-17,03:24,ES,A,A+,long,nyam,rotation,long,mss,fvg,4,none,0.48,29,yes,6283.50,6272.25,6312.75,6296.25,4,0.50,1.14,0.74,1.34,42,none,0,0,
+2026-03-17,09:12,ES,A,B,short,nypm,rotation,long,mss,fvg,4,none,2.08,87,nd,6188.00,6181.75,6204.50,6181.75,3,0.25,-1.00,1.00,0.18,127,none,0,0,
+2026-03-18,09:12,ES,A,A,long,london,trend_dn,short,mss,fvg,2,none,1.25,29,nd,6199.25,6193.50,6214.50,6194.75,3,0.35,-0.79,1.00,1.11,48,none,0,0,
+2026-03-19,10:04,ES,B,B,short,nyam,rotation,short,bos,fvg,3,bull,0.24,66,nd,6240.50,6232.00,6263.00,6234.25,4,0.25,-0.72,1.00,0.67,96,none,0,0,
+2026-03-20,03:24,ES,A,A+,long,london,rotation,short,mss,breaker,1,bear,1.32,33,nd,6299.00,6289.25,6324.25,6312.25,1,0.50,1.35,0.21,2.19,80,E2,0,0,
+2026-03-20,03:24,ES,C,A,short,nyam,rotation,long,bos,fvg,2,na,2.06,43,yes,6197.00,6192.00,6210.25,6192.00,2,0.35,-1.00,1.00,0.75,91,E9,0,0,
+2026-03-23,08:00,ES,NT,,,none,trend_up,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-03-24,08:00,ES,NT,,,none,trend_up,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-03-25,08:00,ES,NT,,,none,chop,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-03-25,09:55,ES,A,A,long,nyam,chop,long,mss,fvg,3,none,0.4,35,nd,,,,,,0.35,2.34,,,,none,1,0,hesitated
+2026-03-26,08:00,ES,NT,,,none,trend_up,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-03-27,09:38,ES,B,A,short,nypm,trend_up,short,bos,fvg,2,bull,0.55,42,nd,6228.00,6217.25,6256.25,6217.25,1,0.35,-1.00,1.00,0.34,33,none,0,0,
+2026-03-30,10:41,NQ,C,A,long,nyam,rotation,long,bos,breaker,2,none,-2.2,58,yes,22458.00,22414.00,22572.50,22414.00,3,0.35,-1.00,1.00,0.46,140,E9,0,0,
+2026-03-31,10:41,ES,A,A,short,london,rotation,long,mss,breaker,2,bull,1.48,75,nd,6280.25,6269.00,6309.25,6311.25,5,0.35,2.79,0.32,3.09,47,none,0,0,
+2026-04-01,03:24,ES,B,B,short,nyam,trend_dn,long,bos,fvg,2,none,-2.19,18,nd,6185.75,6176.25,6210.25,6177.75,5,0.25,-0.84,1.00,0.56,35,E2,0,0,
+2026-04-02,08:47,NQ,A,B,long,nyam,rotation,long,mss,ob,3,bear,1.07,48,nd,22529.50,22497.50,22612.75,22655.75,2,0.25,3.95,0.72,4.08,15,none,0,0,
+2026-04-03,09:12,NQ,A,B,short,nyam,rotation,long,mss,breaker,4,bull,0.03,67,nd,22371.00,22328.75,22481.00,22334.50,4,0.25,-0.86,1.00,0.12,65,none,0,0,
+2026-04-03,13:52,NQ,C,A+,short,nypm,rotation,long,bos,ob,1,na,0.8,61,no,22722.00,22696.25,22789.00,22739.00,2,0.50,0.66,0.29,0.76,118,none,0,0,
+2026-04-06,09:12,ES,A,A,short,nypm,rotation,short,mss,breaker,1,bear,-1.97,46,nd,6220.50,6213.00,6240.25,6213.00,2,0.35,-1.00,1.00,0.98,75,none,0,0,
+2026-04-06,10:04,ES,C,A,long,london,rotation,long,bos,composite,4,none,-1.59,46,nd,6268.25,6256.75,6297.75,6319.50,5,0.35,4.49,0.43,5.44,44,E2,0,0,
+2026-04-07,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-04-08,13:52,ES,A,B,short,nyam,trend_dn,short,mss,composite,2,none,-1.13,32,no,6250.00,6239.25,6277.75,6240.75,1,0.25,-0.86,1.00,0.25,93,none,0,0,
+2026-04-09,10:04,NQ,B,A,long,nyam,rotation,short,bos,ob,4,none,-0.24,49,nd,22516.00,22478.75,22612.75,22587.00,1,0.35,1.91,0.39,2.24,44,none,0,0,
+2026-04-09,09:55,ES,A,A,long,nyam,rotation,long,mss,fvg,3,none,0.4,35,nd,,,,,,0.35,3.75,,,,none,1,0,hesitated
+2026-04-10,09:12,NQ,A,B,short,nyam,rotation,long,mss,fvg,1,none,-1.18,14,nd,22365.50,22341.75,22427.50,22342.75,3,0.25,-0.95,1.00,0.71,44,none,0,0,
+2026-04-13,10:04,NQ,B,B,short,nypm,trend_up,long,bos,ob,1,na,0.9,49,yes,22467.25,22439.25,22539.75,22503.75,2,0.25,1.31,0.05,1.52,139,none,0,0,
+2026-04-14,08:00,ES,NT,,,none,trend_up,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-04-15,10:04,ES,A,A,short,london,rotation,long,mss,ob,4,bear,1.15,47,yes,6283.50,6275.00,6305.75,6276.75,5,0.35,-0.78,1.00,0.67,138,none,0,0,
+2026-04-16,03:24,ES,C,B,short,nypm,chop,short,bos,fvg,1,na,-0.75,33,nd,6199.75,6194.50,6213.75,6194.75,5,0.25,-0.95,1.00,0.34,131,none,0,0,
+2026-04-16,09:55,ES,A,A,long,nyam,chop,long,mss,fvg,3,none,0.4,35,nd,,,,,,0.35,3.35,,,,none,1,0,hesitated
+2026-04-17,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-04-20,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-04-21,08:00,ES,NT,,,none,chop,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-04-22,03:24,NQ,B,A,long,london,rotation,short,bos,fvg,4,bull,1.85,42,yes,22584.75,22549.00,22677.75,22601.25,1,0.35,0.46,0.39,1.06,98,none,0,0,
+2026-04-23,03:24,ES,A,A,short,nyam,rotation,short,mss,composite,2,na,-1.4,48,nd,6212.75,6204.50,6234.50,6205.75,2,0.35,-0.84,1.00,0.66,72,E2,0,0,
+2026-04-23,03:24,ES,A,B,long,nyam,rotation,long,mss,breaker,1,bear,-0.35,67,yes,6247.50,6238.75,6270.50,6257.00,2,0.25,1.08,0.27,1.35,118,none,0,0,
+2026-04-24,08:00,ES,NT,,,none,chop,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-04-27,03:24,ES,B,B,short,nyam,trend_dn,long,bos,ob,1,none,2.16,23,yes,6303.75,6294.75,6327.25,6316.00,2,0.25,1.34,0.28,1.53,126,none,0,0,
+2026-04-28,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-04-29,10:41,ES,A,A+,long,nyam,rotation,long,mss,ob,3,bull,1.02,36,nd,6279.25,6271.75,6298.50,6289.00,3,0.50,1.31,0.90,1.79,116,none,0,0,
+2026-04-29,03:24,NQ,B,B,short,london,rotation,short,bos,breaker,3,none,-1.97,82,nd,22392.75,22359.50,22479.50,22429.50,4,0.25,1.10,0.54,1.65,118,none,0,0,
+2026-04-29,09:55,ES,A,A,long,nyam,rotation,long,mss,fvg,3,none,0.4,35,nd,,,,,,0.35,4.4,,,,none,1,0,hesitated
+2026-04-30,03:24,NQ,A,A+,long,nyam,trend_up,short,mss,ob,2,none,-1.49,31,nd,22397.50,22377.25,22450.50,22416.50,1,0.50,0.93,0.13,1.39,110,none,0,0,
+2026-05-01,09:38,ES,A,B,long,nyam,trend_dn,short,mss,ob,4,bear,-1.24,61,nd,6269.00,6263.50,6283.50,6263.50,2,0.25,-1.00,1.00,0.34,110,none,0,0,
+2026-05-01,10:22,ES,A,B,short,london,trend_dn,short,mss,ob,4,none,-0.58,74,nd,6225.50,6217.75,6245.50,6218.25,1,0.25,-0.95,1.00,0.19,12,none,0,0,
+2026-05-04,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-05-05,09:12,ES,A,A,long,nyam,trend_dn,short,mss,ob,1,na,2.18,24,yes,6198.25,6186.75,6228.00,6207.75,4,0.35,0.82,0.13,0.83,85,none,0,0,
+2026-05-06,08:00,ES,NT,,,none,chop,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-05-07,08:00,ES,NT,,,none,chop,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-05-08,08:00,ES,NT,,,none,trend_dn,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-05-11,10:22,ES,A,A,short,nyam,rotation,short,mss,ob,3,bull,0.14,56,nd,6185.25,6179.00,6201.50,6179.00,4,0.35,-0.98,1.00,0.47,38,none,0,0,
+2026-05-11,13:52,NQ,A,A,long,nypm,rotation,long,mss,fvg,3,na,-1.08,84,nd,22646.50,22617.50,22722.00,22617.50,3,0.35,-1.00,1.00,0.37,12,none,0,0,
+2026-05-12,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-05-13,10:22,NQ,A,A,long,nyam,rotation,long,mss,breaker,4,bear,-2.14,41,nd,22613.75,22580.50,22700.50,22589.50,4,0.35,-0.73,1.00,0.51,36,none,0,0,
+2026-05-13,09:55,ES,A,A,long,nyam,rotation,long,mss,fvg,3,none,0.4,35,nd,,,,,,0.35,0.88,,,,none,1,0,hesitated
+2026-05-14,08:47,NQ,C,B,long,nyam,rotation,long,bos,fvg,4,bear,-1.5,23,yes,22610.50,22578.25,22694.50,22580.75,5,0.25,-0.92,1.00,0.77,62,none,0,0,
+2026-05-14,13:52,ES,A,B,long,nyam,rotation,short,mss,composite,4,bull,0.68,32,no,6189.00,6179.50,6213.50,6182.00,1,0.25,-0.75,1.00,0.10,78,E9,0,0,
+2026-05-15,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-05-18,08:47,NQ,B,B,long,nyam,trend_up,short,bos,ob,2,na,1.08,51,yes,22857.25,22815.00,22967.25,22819.50,4,0.25,-0.89,1.00,0.17,96,none,0,0,
+2026-05-18,10:04,NQ,B,B,short,nyam,trend_up,long,bos,composite,1,none,-1.45,14,yes,22618.25,22598.00,22670.75,22598.00,1,0.25,-1.00,1.00,1.27,53,none,0,0,
+2026-05-19,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-05-19,09:55,ES,A,A,long,nyam,rotation,long,mss,fvg,3,none,0.4,35,nd,,,,,,0.35,3.59,,,,none,1,0,hesitated
+2026-05-20,10:04,ES,A,A,long,nypm,trend_up,long,mss,fvg,1,bull,1.53,21,nd,6285.75,6275.75,6311.75,6337.75,3,0.35,5.21,0.85,5.28,134,none,0,0,
+2026-05-20,09:55,ES,A,A,long,nyam,trend_up,long,mss,fvg,3,none,0.4,35,nd,,,,,,0.35,0.69,,,,none,1,0,hesitated
+2026-05-21,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-05-22,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-05-25,09:12,ES,A,A+,short,nyam,trend_dn,long,mss,composite,1,none,-0.93,16,yes,6278.75,6270.00,6301.50,6331.00,4,0.50,5.95,0.08,6.03,36,none,0,0,
+2026-05-26,08:00,ES,NT,,,none,trend_dn,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-05-27,09:12,ES,A,A+,short,nypm,rotation,short,mss,fvg,4,na,1.72,21,nd,6287.25,6278.75,6309.25,6296.75,1,0.50,1.14,0.50,1.74,107,E9,0,0,
+2026-05-27,08:47,ES,A,B,short,nypm,rotation,short,mss,ob,4,none,1.06,31,nd,6197.75,6188.50,6221.50,6191.25,3,0.25,-0.72,1.00,0.40,71,none,0,0,
+2026-05-28,10:22,NQ,A,B,long,nyam,rotation,long,mss,fvg,2,none,2.13,48,nd,22509.25,22483.25,22576.50,22604.75,4,0.25,3.69,0.19,4.24,82,E2,0,0,
+2026-05-28,10:22,NQ,A,A,short,nypm,rotation,long,mss,ob,3,none,-0.42,41,nd,22562.00,22536.50,22628.50,22590.25,4,0.35,1.11,0.08,1.73,119,E9,0,0,
+2026-05-29,03:24,ES,B,A,long,nyam,trend_up,short,bos,ob,3,na,-0.08,12,nd,6223.75,6214.25,6248.25,6215.00,4,0.35,-0.92,1.00,0.62,58,none,0,0,
+2026-06-01,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-06-02,08:00,ES,NT,,,none,chop,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-06-03,03:24,NQ,C,B,long,nyam,rotation,short,bos,fvg,3,bear,-0.44,11,yes,22868.75,22843.50,22934.50,22896.75,4,0.25,1.11,0.06,1.60,102,none,0,0,
+2026-06-04,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-06-05,10:41,ES,C,A+,short,nyam,chop,short,bos,breaker,2,none,-0.13,39,no,6258.75,6252.25,6275.75,6265.00,4,0.50,0.96,0.11,1.04,76,E9,0,0,
+2026-06-05,09:12,NQ,C,A,short,nyam,chop,long,bos,breaker,4,bull,1.44,51,nd,22481.00,22449.00,22564.25,22449.00,2,0.35,-1.00,1.00,0.19,100,none,0,0,
+2026-06-08,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-06-09,08:00,ES,NT,,,none,trend_up,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-06-10,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-06-11,08:00,ES,NT,,,none,rotation,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-06-12,08:00,ES,NT,,,none,trend_dn,neutral,,,,na,,,nd,,,,,,,,,,,none,0,0,filters KO
+2026-06-15,09:12,ES,B,A+,short,nyam,trend_up,short,bos,ob,2,none,0.25,71,nd,6283.75,6275.75,6304.75,6276.00,2,0.50,-0.96,1.00,0.20,137,none,0,0,
+2026-06-16,08:47,ES,B,B,short,nyam,rotation,long,bos,composite,4,none,-1.56,37,nd,6230.50,6221.00,6255.25,6265.00,2,0.25,3.62,0.32,3.66,98,none,0,0,
+2026-06-16,09:55,ES,A,A,long,nyam,rotation,long,mss,fvg,3,none,0.4,35,nd,,,,,,0.35,3.3,,,,none,1,0,hesitated
+2026-06-17,10:41,NQ,C,B,long,london,trend_dn,short,bos,fvg,3,bear,0.94,26,nd,22542.25,22509.75,22627.00,22584.00,1,0.25,1.28,0.31,1.76,22,none,0,0,
