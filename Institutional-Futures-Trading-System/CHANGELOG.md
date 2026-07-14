@@ -3,6 +3,38 @@
 Formato: [SemVer](https://semver.org/lang/it/). Le modifiche ai parametri canonici P1–P17
 richiedono bump minor + nota di validazione (vedi `Documentation/00_Conventions_and_Specs.md` §4).
 
+## [3.1.0] — 2026-07 · Execution platform (logica segnali invariata)
+
+### Aggiunto
+- **Setup Quality Engine**: 13 componenti pesati (H4 bias 15 · MTF 10 · sweep 12 · MSS 15 ·
+  SMT 8 · P/D 8 · VWAP 5 · sessione 8 · OB quality 4 · FVG quality 5 · RR 5 · volatilità 3
+  · recency 2) → score 0-100 → classi **A+ (≥95) / A (≥90) / B (≥80) / IGNORE (<80)**.
+  Le classi guidano l'enfasi (spessore entry line, badge nel panel, testo alert) — mai la
+  generazione dei segnali.
+- **Contesto multi-timeframe**: bias H4/H1/M15/M5 (3 security aggiuntive, gate per chart
+  TF), riga MTF nel panel con ✓ di allineamento; alimenta lo score.
+- **Smart zone selection**: FVG e OB classificati per qualità (dimensione, freschezza,
+  mitigazione, confluenza, distanza); in Analysis è disegnato solo il migliore per lato;
+  in Execution il best-FVG appare a STRUCTURE CONFIRMED (anticipazione) e la zona armata
+  durante il retracement; Debug disegna tutto.
+- **Checklist automatica (Explain mode)**: toggle che appende ✓/✗ per 9 requisiti +
+  riepilogo WAIT/READY e la scomposizione dello score (Pine non ha hover: è un input).
+- **Trade lifecycle esteso**: ENTERED → BREAK EVEN → PARTIAL → RUNNER (per MFE in R) →
+  esito; mostrato nella riga Status.
+- **Auto-journal on-chart** (ultimi 50 trade del tracker): n, win rate, R medio, confidenza
+  media win vs loss in Analysis. Il journal scritto resta il record di verità.
+- **Smart alerts**: i payload dinamici ora includono confidenza e classe
+  ("IFTS LONG READY [A] · Confidence 91% · Entry/Stop/Target/RR"). Le 7 alertcondition
+  sono invariate.
+- Riga **RR** nel panel.
+
+### Nota di conformità
+Il "dynamic target engine" richiesto coincide con la selezione già esistente (pool
+qualificato più vicino nella direzione, fallback sull'estremo strutturale): cambiare la
+selezione altererebbe l'RR gate — cioè i segnali e gli alert — vietato dal mandato. La
+proposta di tier aggiuntivi (FVG/OB opposti, VWAP) è annotata come roadmap v4 da validare
+con la procedura R19.
+
 ## [3.0.0] — 2026-07 · Decision Support System (state-driven; logica segnali invariata)
 
 Da indicatore object-driven a sistema di supporto decisionale: il grafico comunica lo STATO

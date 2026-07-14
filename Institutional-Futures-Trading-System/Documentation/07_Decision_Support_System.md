@@ -109,7 +109,32 @@ cancellazione; le funzioni non assegnano globali.
 - **Due secondi:** direzione+confidenza nel header colorato, stato e next-step nelle prime
   due righe — l'obiettivo di leggibilità è strutturale, non tipografico.
 
-## 7. Verifica finale eseguita
+## 7. Addendum v3.1 — Quality Engine, MTF, checklist, auto-journal
+
+- **Quality Engine (sostituisce il Confidence Engine v3.0):** 13 componenti pesati
+  (somma 100, pesi in testa al file) → classi A+ ≥95 · A ≥90 · B ≥80 · IGNORE <80. Le
+  classi pilotano SOLO l'enfasi: spessore/dimming della entry line, badge nel panel,
+  testo degli alert dinamici. Nessun gate sui segnali (le 7 alertcondition e le condizioni
+  di arm sono identiche).
+- **MTF context:** mini-bias pivot-hysteresis su H1/M15/M5 (stessa struttura dell'H4),
+  attivo solo per TF ≥ chart TF; riga `MTF H4·H1·15·5` con ✓ quando tutto è allineato
+  alla direzione d'ipotesi; componente di score (allineamento proporzionale).
+- **Smart zone selection:** ranking qualità FVG (size/ATR 30 · unmitigated 25 · freshness
+  20 · confluenza OB 15 · prossimità 10) e OB (kind 30 · unmitigated 25 · freshness 20 ·
+  prossimità 15 · size 10). Analysis mostra solo il campione per lato; Execution mostra il
+  best-FVG del lato-narrativa allo stato 4 e la zona armata agli stati 5-6; Debug tutto.
+- **Checklist automatica:** Explain mode (toggle — Pine non ha eventi hover) appende 9
+  requisiti ✓/✗ (soglia: ≥75% del peso) + riepilogo `x/9 · WAIT/READY`; Debug aggiunge la
+  scomposizione numerica completa dei 13 pesi.
+- **Trade lifecycle:** stage per MFE in R (≥1 BE, ≥1.5 PARTIAL, ≥2.5 RUNNER) nella riga
+  Status durante il trade.
+- **Auto-journal (campione chart, cap 50):** R realizzato, confidenza, esito per ogni
+  trade chiuso dal tracker; aggregati in Analysis (n · WR · avg R · conf media win/loss).
+  Complementare — non sostitutivo — del journal scritto.
+- **Target engine:** invariato per mandato (la selezione del target è dentro l'RR gate dei
+  segnali); estensioni a tier documentate come roadmap.
+
+## 8. Verifica finale eseguita
 
 Zero funzioni annidate; dichiarazioni sempre prima dell'uso (tracker vars spostate prima
 dei gate degli arm); 7 alertcondition; ~17 plot/shape; f_panelFill ritorna il conteggio

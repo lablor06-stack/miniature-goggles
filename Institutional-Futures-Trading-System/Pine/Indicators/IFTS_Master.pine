@@ -1,15 +1,27 @@
 //@version=6
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 //  IFTS — INSTITUTIONAL FUTURES TRADING SYSTEM · MASTER · DECISION SUPPORT SYSTEM
-//  Version 3.0.0 · Pine Script v6 · Target: CME index futures (ES/NQ), chart TF M1–H1
+//  Version 3.1.0 · Pine Script v6 · Target: CME index futures (ES/NQ), chart TF M1–H1
 //
-//  v3.0.0 — state-driven redesign ("what should I do RIGHT NOW?"):
+//  v3.1.0 — execution platform upgrade (signal logic untouched):
+//    · SETUP QUALITY ENGINE: 13 weighted components → 0-100 → class A+ (≥95) / A (≥90) /
+//      B (≥80) / IGNORE (<80); classes drive emphasis, never signal generation
+//    · MULTI-TIMEFRAME CONTEXT: H4/H1/M15/M5 bias, alignment feeds the score
+//    · SMART ZONE SELECTION: FVGs and OBs ranked by quality (size/freshness/mitigation/
+//      confluence/proximity) — only the strongest candidate per side is drawn
+//    · AUTOMATIC CHECKLIST (Explain mode toggle — Pine has no hover events): ✓/✗ per
+//      requirement + WAIT/READY summary
+//    · TRADE LIFECYCLE: Entered → Break Even → Partial → Runner → Closed (MFE-based)
+//    · AUTO-JOURNAL (chart sample): every completed setup recorded internally; aggregates
+//      shown in Analysis. The written journal remains the record of truth.
+//    · SMART ALERTS: dynamic payloads now carry confidence and class
+//
+//  v3.0.0 — state-driven core:
 //    · finite state machine (9 states) narrates the trade lifecycle; ONE state at a time
-//    · confidence engine (weighted 0-100) — the chart communicates conclusions, not evidence
-//    · execution panel: DIRECTION · CONFIDENCE · STATUS · NEXT · E/S/T — nothing else
+//    · execution panel: DIRECTION · CONFIDENCE · STATUS · NEXT · E/S/T · RR
 //    · adaptive visibility per state: liquidity → sweep → entry zone → E/S/T → clean chart
 //    · trade tracker with visual outcome (target/stop/session-end) and full object cleanup
-//    · modes: EXECUTION (default) · ANALYSIS (all analytical objects) · DEBUG (internals)
+//    · modes: EXECUTION (default) · ANALYSIS (analytical objects) · DEBUG (internals)
 //
 //  UNCHANGED vs v2.x (logic layer): signal conditions, FVG/OB/sweep/SMT/VWAP/regime
 //  calculations, grading, statistics, all 7 alertconditions and dynamic alert payloads.
@@ -62,16 +74,22 @@ int S_ENTRY_READY = 6
 int S_TRADE_ACTIVE = 7
 int S_TRADE_CLOSED = 8
 
-// confidence weights (sum = 100) — shown only in Debug mode
-float W_BIAS = 20.0
-float W_KZ   = 10.0
-float W_SWP  = 15.0
-float W_MSS  = 20.0
-float W_SMT  = 10.0
-float W_PD   = 10.0
-float W_VWAP = 5.0
-float W_FVGQ = 5.0
-float W_RR   = 5.0
+// SETUP QUALITY ENGINE weights (sum = 100) — breakdown visible in Explain/Debug only.
+// Classes: ≥95 A+ · ≥90 A · ≥80 B · <80 IGNORE. Classes drive EMPHASIS (line weight,
+// panel badge, alert text); they never gate signal generation or alerts.
+float W_BIAS = 15.0   // H4 bias agreement (neutral = half)
+float W_MTF  = 10.0   // H1/M15/M5 alignment with the hypothesis
+float W_SWP  = 12.0   // qualified liquidity sweep behind the move
+float W_MSS  = 15.0   // structure shift confirmed
+float W_SMT  = 8.0    // recent same-side SMT divergence
+float W_PD   = 8.0    // entry in the favorable half of the dealing range
+float W_VWAP = 5.0    // price on the favorable side of session VWAP
+float W_SESS = 8.0    // session quality (NY AM 8 · London 7 · PM 4 · lunch 0 · other 2)
+float W_OBQ  = 4.0    // order-block backing of the entry zone
+float W_FVGQ = 5.0    // entry FVG quality (size/freshness/confluence/proximity)
+float W_RR   = 5.0    // risk:reward (≥ minRr full · ≥1 partial)
+float W_VOL  = 3.0    // volatility sanity (day range vs ADR inside the useful band)
+float W_REC  = 2.0    // recency of the structural confirmation
 
 int CLOSED_SHOW_BARS = 10   // how long state 8 stays on the panel before returning to idle
 
@@ -97,6 +115,8 @@ bool biasOn     = input.bool(true, "HTF bias filter", group = GEN, tooltip = "Ex
 string biasTf   = input.timeframe("240", "Bias timeframe", group = GEN, tooltip = "H4 default per Conventions §3.")
 bool regimeOn   = input.bool(true, "Day-regime classifier", group = GEN, tooltip = "Rotation / Trend / Chop heuristic. Gates signals; the trader owns the final call.")
 bool pdOn       = input.bool(true, "Dealing range (premium/discount)", group = GEN, tooltip = "Algorithmic dealing range from external swings. Enforces the V6 gate on Setup A and feeds confidence. EQ line drawn in Analysis mode only.")
+bool explainOn  = input.bool(false, "Explain mode (checklist + score breakdown)", group = GEN, tooltip = "Appends the automatic checklist (✓/✗ per requirement, WAIT/READY summary) and the quality components to the panel. Learning/validation aid — keep OFF while executing. Pine has no hover events, hence a toggle.")
+bool mtfOn      = input.bool(true, "Multi-timeframe context (H1/M15/M5)", group = GEN, tooltip = "Directional bias of H1, M15 and M5 alongside the H4 bias; alignment feeds the quality score and the MTF panel row. Three additional security calls.")
 
 string MSG = "Market Structure"
 bool msOn      = input.bool(true, "Enable structure engine", group = MSG, tooltip = "Swings, BOS, CHoCH, MSS on two scales. Required by liquidity, zones, signals, SMT.")
@@ -405,6 +425,17 @@ StructOut se = f_structure(msExtLen)
 bool mssUpEvt = msOn and si.chochUp and dispUpEff
 bool mssDnEvt = msOn and si.chochDn and dispDnEff
 
+// MSS memory (consumed by the state machine and the quality engine — updated here so it
+// is fresh on the very bar a setup arms)
+var int lastMssUiBi = na
+var int lastMssUiDir = 0
+if mssUpEvt
+    lastMssUiBi := bar_index
+    lastMssUiDir := 1
+if mssDnEvt
+    lastMssUiBi := bar_index
+    lastMssUiDir := -1
+
 // ── 7 · liquidity engine
 var array<Pool> pools = array.new<Pool>()
 
@@ -586,7 +617,7 @@ f_zoneUndraw(Zone z) =>
 
 f_zoneNew(array<Zone> arr, int leftBi, float top, float bot, int kind, int zdir, int capN, bool isFvg) =>
     Zone z = Zone.new(top = top, bot = bot, kind = kind, dir = zdir, bornBi = bar_index, inKz = kzAny)
-    if drawWin and not isExec
+    if drawWin and isDebug
         f_zoneDrawObjs(z, isFvg)
     arr.push(z)
     while arr.size() > capN
@@ -949,6 +980,39 @@ if regimeOn
         regime := 2
 string regimeTxt = regime == 1 ? "TREND ▲" : regime == -1 ? "TREND ▼" : regime == 2 ? "CHOP" : "ROTATION"
 
+// ── 12b · multi-timeframe context (H1/M15/M5 mini-bias; H4 = biasDir above)
+// Same pivot-hysteresis structure as the H4 bias; per-call-site state; lookahead_off.
+f_tfBias(string tf, bool active) =>
+    var float tHi = na
+    var float tLo = na
+    var bool  tHiB = true
+    var bool  tLoB = true
+    var int   d = 0
+    if active
+        [p1, p2, p3] = request.security(syminfo.tickerid, tf, [ta.pivothigh(high, 8, 8), ta.pivotlow(low, 8, 8), close], lookahead = barmerge.lookahead_off)
+        if not na(p1)
+            tHi := p1
+            tHiB := false
+        if not na(p2)
+            tLo := p2
+            tLoB := false
+        if barstate.isconfirmed and not na(p3)
+            if not na(tHi) and not tHiB and p3 > tHi
+                tHiB := true
+                d := 1
+            if not na(tLo) and not tLoB and p3 < tLo
+                tLoB := true
+                d := -1
+    active ? d : int(na)
+
+int chartSec = timeframe.in_seconds(timeframe.period)
+int h1Dir  = f_tfBias("60", mtfOn and chartSec <= timeframe.in_seconds("60"))
+int m15Dir = f_tfBias("15", mtfOn and chartSec <= timeframe.in_seconds("15"))
+int m5Dir  = f_tfBias("5", mtfOn and chartSec <= timeframe.in_seconds("5"))
+
+f_dirGlyph(int d) =>
+    na(d) ? "·" : d > 0 ? "▲" : d < 0 ? "▼" : "—"
+
 // ── 13 · setups (conditions unchanged)
 bool kzSigOk = inLdn or inNyAm
 
@@ -983,6 +1047,43 @@ f_fvgInsideOb(Zone z) =>
             if ob.state < 2 and ob.dir == z.dir and z.top <= ob.top + eqTol and z.bot >= ob.bot - eqTol
                 comp := true
     comp
+
+// zone quality metrics (0-100) — rendering emphasis + quality-engine input; no signal impact
+f_fvgQuality(Zone z) =>
+    float q = 0.0
+    if not na(z) and nz(atrVal) > 0
+        q += math.min((z.top - z.bot) / atrVal / 0.75, 1.0) * 30      // size vs ATR (cap 0.75)
+        q += z.state == 0 ? 25 : 10                                    // unmitigated vs tested
+        int age = bar_index - z.bornBi
+        q += age <= 20 ? 20 : age <= 60 ? 12 : 5                       // freshness
+        q += f_fvgInsideOb(z) ? 15 : 0                                 // confluence with an OB
+        float dist = math.abs(close - (z.top + z.bot) / 2) / atrVal
+        q += dist <= 1 ? 10 : dist <= 3 ? 6 : 2                        // proximity to price
+    q
+
+f_obQuality(Zone z) =>
+    float q = 0.0
+    if not na(z) and nz(atrVal) > 0
+        q += z.kind == Z_BRK ? 30 : z.kind == Z_OB ? 22 : z.kind == Z_IFV ? 26 : 8   // kind quality
+        q += z.state == 0 ? 25 : 10
+        int age = bar_index - z.bornBi
+        q += age <= 30 ? 20 : age <= 90 ? 12 : 5
+        float dist = math.abs(close - (z.top + z.bot) / 2) / atrVal
+        q += dist <= 1 ? 15 : dist <= 3 ? 9 : 3
+        q += math.min((z.top - z.bot) / atrVal / 1.0, 1.0) * 10
+    q
+
+f_bestZoneByQ(array<Zone> arr, int dir, bool isFvg) =>
+    Zone best = na
+    float bq = -1.0
+    for [idx, z] in arr
+        bool kindOk = not isFvg or z.kind == Z_FVG or z.kind == Z_IFV
+        if z.state < 2 and z.dir == dir and kindOk
+            float q = isFvg ? f_fvgQuality(z) : f_obQuality(z)
+            if q > bq
+                bq := q
+                best := z
+    best
 
 f_setupA(int dir) =>
     bool ok = false
@@ -1074,6 +1175,58 @@ var float  tTgt = na
 var float  tRr = na
 var int    tEndBi = na
 var string tOutcome = ""
+var int    tConf = 0
+var float  tMfeR = na
+var string tStage = ""
+var int    aQual = 0
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+//  SETUP QUALITY ENGINE — 13 weighted components → 0-100 → A+ / A / B / IGNORE
+//  Pure interpretation: reads engine memories, never gates signals or alerts.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+f_qualParts(int dir) =>
+    array<float> w = array.new<float>(13, 0.0)
+    if dir != 0
+        bool inPlay = aState == 1 or tState == 1
+        int  win = inPlay ? advArmWin + advArmExp : advArmWin
+        w.set(0, not biasOn ? W_BIAS * 0.5 : biasDir == dir ? W_BIAS : biasDir == 0 ? W_BIAS * 0.5 : 0.0)
+        int avail = 0
+        int matchN = 0
+        if not na(h1Dir)
+            avail += 1
+            matchN += h1Dir == dir ? 1 : 0
+        if not na(m15Dir)
+            avail += 1
+            matchN += m15Dir == dir ? 1 : 0
+        if not na(m5Dir)
+            avail += 1
+            matchN += m5Dir == dir ? 1 : 0
+        w.set(1, avail > 0 ? W_MTF * matchN / avail : W_MTF * 0.5)
+        int swpBi = dir > 0 ? lastSwpDnBi : lastSwpUpBi
+        w.set(2, not na(swpBi) and bar_index - swpBi <= win ? W_SWP : 0.0)
+        w.set(3, not na(lastMssUiBi) and lastMssUiDir == dir and bar_index - lastMssUiBi <= win ? W_MSS : 0.0)
+        int smtBi = dir > 0 ? lastSmtBullBi : lastSmtBearBi
+        w.set(4, not na(smtBi) and bar_index - smtBi <= advArmWin * 2 ? W_SMT : 0.0)
+        w.set(5, na(pdPct) ? W_PD * 0.5 : (dir > 0 ? pdPct <= 50 : pdPct >= 50) ? W_PD : 0.0)
+        w.set(6, na(sesVwap) ? W_VWAP * 0.4 : (dir > 0 ? close > sesVwap : close < sesVwap) ? W_VWAP : 0.0)
+        w.set(7, inNyAm ? W_SESS : inLdn ? W_SESS * 0.875 : inNyPm ? W_SESS * 0.5 : inLunch ? 0.0 : W_SESS * 0.25)
+        w.set(8, aState == 1 ? (aComp ? W_OBQ : W_OBQ * 0.5) : tState == 1 ? W_OBQ * 0.5 : 0.0)
+        w.set(9, aState == 1 and not na(aZone) ? W_FVGQ * f_fvgQuality(aZone) / 100 : tState == 1 ? W_FVGQ * 0.6 : 0.0)
+        float rrNow = tState == 1 ? tRr : aRr
+        w.set(10, not na(rrNow) ? (rrNow >= advMinRr ? W_RR : rrNow >= 1.0 ? W_RR * 0.6 : 0.0) : 0.0)
+        float volR = not na(adrVal) and adrVal > 0 ? dayRange / adrVal : na
+        w.set(11, na(volR) ? W_VOL * 0.5 : volR >= 0.2 and volR <= 1.0 ? W_VOL : volR <= 1.2 ? W_VOL * 0.5 : 0.0)
+        w.set(12, not na(lastMssUiBi) and lastMssUiDir == dir ? (bar_index - lastMssUiBi <= 5 ? W_REC : bar_index - lastMssUiBi <= 10 ? W_REC * 0.5 : 0.0) : 0.0)
+    w
+
+f_qualScore(int dir) =>
+    math.min(100, math.round(array.sum(f_qualParts(dir))))
+
+f_qClass(int q) =>
+    q >= 95 ? "A+" : q >= 90 ? "A" : q >= 80 ? "B" : "IGNORE"
+
+f_qualName(int i) =>
+    i == 0 ? "H4 bias" : i == 1 ? "MTF align" : i == 2 ? "Sweep" : i == 3 ? "MSS" : i == 4 ? "SMT" : i == 5 ? "P-D" : i == 6 ? "VWAP" : i == 7 ? "Session" : i == 8 ? "OB quality" : i == 9 ? "FVG quality" : i == 10 ? "RR" : i == 11 ? "Volatility" : "Recency"
 
 f_aClear(SigVis v) =>
     line.delete(v.entLn)
@@ -1086,11 +1239,12 @@ f_aClear(SigVis v) =>
     v.ote := na
 
 // draws E/S/T lines (+OTE while armed). No labels: the execution panel narrates.
-f_aDraw(SigVis v, int dir, float e, float s, float t, float legLo, float legHi) =>
+// Entry line width encodes the quality class (A+/A → 3 · B → 2 · IGNORE → 1, dimmed).
+f_aDraw(SigVis v, int dir, float e, float s, float t, float legLo, float legHi, int wEnt) =>
     f_aClear(v)
     if drawWin
         color dirCol = dir > 0 ? COL_BULL : COL_BEAR
-        v.entLn := line.new(bar_index, e, bar_index + 8, e, xloc = xloc.bar_index, color = dirCol, width = 2)
+        v.entLn := line.new(bar_index, e, bar_index + 8, e, xloc = xloc.bar_index, color = wEnt <= 1 ? color.new(dirCol, 45) : dirCol, width = math.max(wEnt, 1))
         v.stpLn := line.new(bar_index, s, bar_index + 8, s, xloc = xloc.bar_index, color = color.new(COL_BEAR, 25), width = 1)
         v.tgtLn := line.new(bar_index, t, bar_index + 8, t, xloc = xloc.bar_index, color = color.new(COL_BULL, 25), width = 1)
         if advOteOn and not na(legLo) and not na(legHi) and legHi > legLo
@@ -1147,10 +1301,11 @@ if sigOn and barstate.isconfirmed
             aGrade := f_grade(pts)
             aZone := f_lastFvgSince(lastSwpDnBi, 1)
             aComp := f_fvgInsideOb(aZone)
+            aQual := f_qualScore(1)
             setupALong := true
             if tState == 0
-                f_aDraw(aVis, 1, e, s, t, lastSwpDnExt, high)
-            aAlertTxt := "IFTS Setup A LONG [" + aGrade + "] " + syminfo.ticker + " · entry " + f_px(e) + " · stop " + f_px(s) + " · target " + f_px(t) + " · RR " + str.tostring(r, "#.##")
+                f_aDraw(aVis, 1, e, s, t, lastSwpDnExt, high, aQual >= 90 ? 3 : aQual >= 80 ? 2 : 1)
+            aAlertTxt := "IFTS LONG READY [" + f_qClass(aQual) + "] " + syminfo.ticker + " · Confidence " + str.tostring(aQual) + "% · Entry " + f_px(e) + " · Stop " + f_px(s) + " · Target " + f_px(t) + " · RR " + str.tostring(r, "#.##")
     if not setupALong and kzSigOk and regime != 1 and mssDnEvt
         [ok, e, s, t, r, pts] = f_setupA(-1)
         if ok
@@ -1164,10 +1319,11 @@ if sigOn and barstate.isconfirmed
             aGrade := f_grade(pts)
             aZone := f_lastFvgSince(lastSwpUpBi, -1)
             aComp := f_fvgInsideOb(aZone)
+            aQual := f_qualScore(-1)
             setupAShort := true
             if tState == 0
-                f_aDraw(aVis, -1, e, s, t, low, lastSwpUpExt)
-            aAlertTxt := "IFTS Setup A SHORT [" + aGrade + "] " + syminfo.ticker + " · entry " + f_px(e) + " · stop " + f_px(s) + " · target " + f_px(t) + " · RR " + str.tostring(r, "#.##")
+                f_aDraw(aVis, -1, e, s, t, low, lastSwpUpExt, aQual >= 90 ? 3 : aQual >= 80 ? 2 : 1)
+            aAlertTxt := "IFTS SHORT READY [" + f_qClass(aQual) + "] " + syminfo.ticker + " · Confidence " + str.tostring(aQual) + "% · Entry " + f_px(e) + " · Stop " + f_px(s) + " · Target " + f_px(t) + " · RR " + str.tostring(r, "#.##")
 
 bool setupBLong = false
 bool setupBShort = false
@@ -1229,28 +1385,62 @@ if sigOn and barstate.isconfirmed and bTimeOk
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 //  STATE MACHINE — trade tracker (UI outcome) + finite market state (one state at a time)
 // ════════════════════════════════════════════════════════════════════════════════════════════════
-var int lastMssUiBi = na
-var int lastMssUiDir = 0
-if mssUpEvt
-    lastMssUiBi := bar_index
-    lastMssUiDir := 1
-if mssDnEvt
-    lastMssUiBi := bar_index
-    lastMssUiDir := -1
+// AUTO-JOURNAL (chart sample, capped): every completed setup — the written journal
+// remains the record of truth; this feeds the Analysis aggregates only.
+var array<float> jRr = array.new<float>()
+var array<int> jConf = array.new<int>()
+var array<int> jWin = array.new<int>()
+var array<int> jDir = array.new<int>()
+
+f_journalPush(float rlz, int conf, int dir) =>
+    jRr.push(rlz)
+    jConf.push(conf)
+    jWin.push(rlz > 0 ? 1 : 0)
+    jDir.push(dir)
+    if jRr.size() > 50
+        jRr.shift()
+        jConf.shift()
+        jWin.shift()
+        jDir.shift()
+
+f_journalStats() =>
+    int n = jRr.size()
+    float sumR = 0.0
+    int wins = 0
+    float cw = 0.0
+    int nw = 0
+    float cl = 0.0
+    int nl = 0
+    for [idx, r] in jRr
+        sumR += r
+        if jWin.get(idx) == 1
+            wins += 1
+            cw += jConf.get(idx)
+            nw += 1
+        else
+            cl += jConf.get(idx)
+            nl += 1
+    [n, n > 0 ? 100.0 * wins / n : na, n > 0 ? sumR / n : na, nw > 0 ? cw / nw : na, nl > 0 ? cl / nl : na]
 
 if sigOn and barstate.isconfirmed
-    // trade close detection (visual outcome — journal remains the record of truth)
+    // trade close detection (visual outcome) + lifecycle stage (Entered→BE→Partial→Runner)
     if tState == 1
         f_visExtend(aVis)
+        float mfeNow = tDir > 0 ? (high - tEntry) / math.max(tEntry - tStop, syminfo.mintick) : (tEntry - low) / math.max(tStop - tEntry, syminfo.mintick)
+        tMfeR := math.max(nz(tMfeR, 0.0), mfeNow)
+        tStage := tMfeR >= 2.5 ? "RUNNER" : tMfeR >= 1.5 ? "PARTIAL" : tMfeR >= 1.0 ? "BREAK EVEN" : "ENTERED"
         bool hitS = tDir > 0 ? low <= tStop : high >= tStop
         bool hitT = tDir > 0 ? high >= tTgt : low <= tTgt
         if hitS or hitT or rthEnd
             tOutcome := hitS ? "STOPPED" : hitT ? "TARGET HIT" : "SESSION END"
+            float exitPx = hitS ? tStop : hitT ? tTgt : close
+            float rlz = tDir > 0 ? (exitPx - tEntry) / math.max(tEntry - tStop, syminfo.mintick) : (tEntry - exitPx) / math.max(tStop - tEntry, syminfo.mintick)
+            f_journalPush(rlz, tConf, tDir)
             tState := 0
             tEndBi := bar_index
             f_aClear(aVis)
             if aState == 1
-                f_aDraw(aVis, aDir, aEntry, aStop, aTgt, float(na), float(na))
+                f_aDraw(aVis, aDir, aEntry, aStop, aTgt, float(na), float(na), aQual >= 90 ? 3 : aQual >= 80 ? 2 : 1)
     else if aState == 1
         f_visExtend(aVis)
     // trade adoption (A fill has priority; B only when nothing is being managed)
@@ -1261,6 +1451,9 @@ if sigOn and barstate.isconfirmed
         tStop := aStop
         tTgt := aTgt
         tRr := aRr
+        tConf := aQual
+        tMfeR := 0.0
+        tStage := "ENTERED"
         aState := 0
         aZone := na
     if bTrigEvt and tState == 0 and aState != 1
@@ -1270,7 +1463,10 @@ if sigOn and barstate.isconfirmed
         tStop := bTrigStop
         tRr := bTrigRr
         tTgt := bTrigDir > 0 ? close + bTrigRr * (close - bTrigStop) : close - bTrigRr * (bTrigStop - close)
-        f_aDraw(aVis, tDir, tEntry, tStop, tTgt, float(na), float(na))
+        tConf := f_qualScore(bTrigDir)
+        tMfeR := 0.0
+        tStage := "ENTERED"
+        f_aDraw(aVis, tDir, tEntry, tStop, tTgt, float(na), float(na), 2)
 
 // finite state resolution — exactly ONE state
 int fsm = S_IDLE
@@ -1317,28 +1513,9 @@ f_nextTxt(int s, int dir) =>
     string sweepSide = dir > 0 ? "sellside" : dir < 0 ? "buyside" : "pool"
     s == S_IDLE ? "Wait kill zone" : s == S_WAIT_LIQ ? "Wait " + sweepSide + " sweep" : s == S_LIQ_TAKEN or s == S_WAIT_MSS ? "Need " + dTxt + " MSS" : s == S_STRUCT_OK ? "Wait FVG retracement" : s == S_WAIT_RETRACE ? "Limit " + f_px(aEntry) : s == S_ENTRY_READY ? "Execute " + f_px(aEntry) : s == S_TRADE_ACTIVE ? "S " + f_px(tStop) + " · T " + f_px(tTgt) : "Journal the trade"
 
-// ════════════════════════════════════════════════════════════════════════════════════════════════
-//  CONFIDENCE ENGINE (weighted 0-100 · interpretation only, no signal impact)
-// ════════════════════════════════════════════════════════════════════════════════════════════════
-f_confParts(int dir, int s) =>
-    array<float> w = array.new<float>(9, 0.0)
-    if dir != 0
-        w.set(0, not biasOn ? W_BIAS * 0.5 : biasDir == dir ? W_BIAS : biasDir == 0 ? W_BIAS * 0.5 : 0.0)
-        w.set(1, kzAny ? W_KZ : 0.0)
-        int swpBi = dir > 0 ? lastSwpDnBi : lastSwpUpBi
-        w.set(2, not na(swpBi) and (s >= S_LIQ_TAKEN and s <= S_ENTRY_READY ? bar_index - swpBi <= advArmWin + advArmExp : bar_index - swpBi <= advArmWin) ? W_SWP : 0.0)
-        w.set(3, s >= S_STRUCT_OK ? W_MSS : 0.0)
-        int smtBi = dir > 0 ? lastSmtBullBi : lastSmtBearBi
-        w.set(4, not na(smtBi) and bar_index - smtBi <= advArmWin * 2 ? W_SMT : 0.0)
-        w.set(5, na(pdPct) ? W_PD * 0.5 : (dir > 0 ? pdPct <= 50 : pdPct >= 50) ? W_PD : 0.0)
-        w.set(6, na(sesVwap) ? W_VWAP * 0.4 : (dir > 0 ? close > sesVwap : close < sesVwap) ? W_VWAP : 0.0)
-        w.set(7, s == S_WAIT_RETRACE or s == S_ENTRY_READY ? (aComp ? W_FVGQ : W_FVGQ * 0.6) : s >= S_TRADE_ACTIVE ? W_FVGQ * 0.6 : 0.0)
-        float rrNow = s >= S_TRADE_ACTIVE ? tRr : aRr
-        w.set(8, not na(rrNow) ? (rrNow >= advMinRr ? W_RR : rrNow >= 1.0 ? W_RR * 0.6 : 0.0) : 0.0)
-    w
-
-f_confName(int i) =>
-    i == 0 ? "HTF bias" : i == 1 ? "Kill zone" : i == 2 ? "Sweep" : i == 3 ? "MSS" : i == 4 ? "SMT" : i == 5 ? "P-D" : i == 6 ? "VWAP" : i == 7 ? "FVG quality" : "RR"
+// (quality engine defined above, in the signal section — computed at arm time and live)
+f_qualWeight(int i) =>
+    i == 0 ? W_BIAS : i == 1 ? W_MTF : i == 2 ? W_SWP : i == 3 ? W_MSS : i == 4 ? W_SMT : i == 5 ? W_PD : i == 6 ? W_VWAP : i == 7 ? W_SESS : i == 8 ? W_OBQ : i == 9 ? W_FVGQ : i == 10 ? W_RR : i == 11 ? W_VOL : W_REC
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 //  OBJECT MANAGER & RENDERING ENGINE (state-driven visibility)
@@ -1377,29 +1554,58 @@ if barstate.isconfirmed and msOn
         if msShowExt and se.bosDn
             f_msDraw(se.loBi, se.lo, "BOS·ext", COL_NEUT)
 
-// Execution adaptive visibility: pools ↔ entry zone ↔ nothing, driven by the state machine
-if isExec and barstate.isconfirmed and drawWin
-    bool showPoolsNow = fsm <= S_ENTRY_READY
-    int i = pools.size() - 1
-    while i >= 0
-        Pool p = pools.get(i)
-        if p.state <= 1 and showPoolsNow and liqShow and f_poolDrawable(p.src)
-            f_poolEnsure(p)
-        else
-            f_poolUndraw(p)
-        i -= 1
-    bool showEntryZone = aState == 1 and not na(aZone) and aZone.state < 2 and (fsm == S_WAIT_RETRACE or fsm == S_ENTRY_READY)
+// SMART ZONE SELECTION + adaptive visibility.
+// Execution: state-driven — best FVG candidate appears at STRUCTURE CONFIRMED, the armed
+// entry zone during retracement wait, nothing while in trade. Analysis: only the highest-
+// quality FVG and OB per side (arrays stay fully populated for the engine). Debug: all
+// zones drawn at creation.
+if not isDebug and barstate.isconfirmed and drawWin
+    if isExec
+        bool showPoolsNow = fsm <= S_ENTRY_READY
+        int i = pools.size() - 1
+        while i >= 0
+            Pool p = pools.get(i)
+            if p.state <= 1 and showPoolsNow and liqShow and f_poolDrawable(p.src)
+                f_poolEnsure(p)
+            else
+                f_poolUndraw(p)
+            i -= 1
+    Zone cF1 = na
+    Zone cF2 = na
+    Zone cO1 = na
+    Zone cO2 = na
+    if isExec
+        if fsm == S_STRUCT_OK and fsmDir != 0
+            cF1 := f_bestZoneByQ(fvgZones, fsmDir, true)
+        if aState == 1 and not na(aZone) and aZone.state < 2 and (fsm == S_WAIT_RETRACE or fsm == S_ENTRY_READY)
+            cF1 := aZone
+    else
+        cF1 := f_bestZoneByQ(fvgZones, 1, true)
+        cF2 := f_bestZoneByQ(fvgZones, -1, true)
+        cO1 := f_bestZoneByQ(obZones, 1, false)
+        cO2 := f_bestZoneByQ(obZones, -1, false)
     for [idx, z] in fvgZones
         z.champ := false
-    if showEntryZone
-        aZone.champ := true
+    for [idx, z] in obZones
+        z.champ := false
+    if not na(cF1)
+        cF1.champ := true
+    if not na(cF2)
+        cF2.champ := true
+    if not na(cO1)
+        cO1.champ := true
+    if not na(cO2)
+        cO2.champ := true
     for [idx, z] in fvgZones
         if z.champ
             f_zoneDrawObjs(z, true)
         else
             f_zoneUndraw(z)
     for [idx, z] in obZones
-        f_zoneUndraw(z)
+        if z.champ
+            f_zoneDrawObjs(z, false)
+        else
+            f_zoneUndraw(z)
 
 // EQ line — Analysis/Debug only
 var line eqLn = na
@@ -1470,13 +1676,14 @@ f_dashCell(table t, bool keysPass, int row, string txt, color tc) =>
 
 f_panelFill(table t, bool keysPass, int s, int dir, int conf, array<float> parts) =>
     int r = 0
-    // header (merged): DIRECTION · CONFIDENCE — the two-second answer
+    // header (merged): DIRECTION · CONFIDENCE · CLASS — the two-second answer
     if not keysPass
         color hCol = dir > 0 ? COL_BULL : dir < 0 ? COL_BEAR : COL_NEUT
-        string hTxt = (dir > 0 ? "LONG" : dir < 0 ? "SHORT" : "—") + (dir != 0 ? "   " + str.tostring(conf) + "%" : "")
+        string hTxt = (dir > 0 ? "LONG" : dir < 0 ? "SHORT" : "—") + (dir != 0 ? "   " + str.tostring(conf) + "%  ·  " + f_qClass(conf) : "")
         table.cell(t, 0, r, hTxt, text_color = color.white, text_size = dashSz == "Normal" ? size.large : size.normal, text_halign = text.align_center, bgcolor = color.new(hCol, 35))
     r += 1
-    f_dashCell(t, keysPass, r, keysPass ? "Status" : f_stateName(s), keysPass ? COL_NEUT : s == S_TRADE_CLOSED ? (tOutcome == "TARGET HIT" ? COL_BULL : tOutcome == "STOPPED" ? COL_BEAR : COL_NEUT) : s >= S_ENTRY_READY ? (dir > 0 ? COL_BULL : COL_BEAR) : color.new(COL_NEUT, 5))
+    string stTxt = s == S_TRADE_ACTIVE ? "ACTIVE · " + tStage : f_stateName(s)
+    f_dashCell(t, keysPass, r, keysPass ? "Status" : stTxt, keysPass ? COL_NEUT : s == S_TRADE_CLOSED ? (tOutcome == "TARGET HIT" ? COL_BULL : tOutcome == "STOPPED" ? COL_BEAR : COL_NEUT) : s >= S_ENTRY_READY ? (dir > 0 ? COL_BULL : COL_BEAR) : color.new(COL_NEUT, 5))
     r += 1
     f_dashCell(t, keysPass, r, keysPass ? "Next" : f_nextTxt(s, dir), keysPass ? COL_NEUT : color.new(COL_NEUT, 5))
     r += 1
@@ -1484,12 +1691,33 @@ f_panelFill(table t, bool keysPass, int s, int dir, int conf, array<float> parts
     float eShow = s == S_TRADE_ACTIVE ? tEntry : aEntry
     float sShow = s == S_TRADE_ACTIVE ? tStop : aStop
     float tShow = s == S_TRADE_ACTIVE ? tTgt : aTgt
+    float rShow = s == S_TRADE_ACTIVE ? tRr : aRr
     f_dashCell(t, keysPass, r, keysPass ? "Entry" : showEst ? f_px(eShow) : "—", keysPass ? COL_NEUT : showEst ? (dir > 0 ? COL_BULL : COL_BEAR) : COL_NEUT)
     r += 1
     f_dashCell(t, keysPass, r, keysPass ? "Stop" : showEst ? f_px(sShow) : "—", keysPass ? COL_NEUT : showEst ? COL_BEAR : COL_NEUT)
     r += 1
     f_dashCell(t, keysPass, r, keysPass ? "Target" : showEst ? f_px(tShow) : "—", keysPass ? COL_NEUT : showEst ? COL_BULL : COL_NEUT)
     r += 1
+    f_dashCell(t, keysPass, r, keysPass ? "RR" : showEst and not na(rShow) ? str.tostring(rShow, "#.##") : "—", keysPass ? COL_NEUT : showEst ? color.new(COL_VWAP, 15) : COL_NEUT)
+    r += 1
+    if mtfOn
+        string mtfV = f_dirGlyph(biasDir) + "  " + f_dirGlyph(h1Dir) + "  " + f_dirGlyph(m15Dir) + "  " + f_dirGlyph(m5Dir)
+        bool allAligned = dir != 0 and biasDir == dir and (na(h1Dir) or h1Dir == dir) and (na(m15Dir) or m15Dir == dir) and (na(m5Dir) or m5Dir == dir)
+        f_dashCell(t, keysPass, r, keysPass ? "MTF H4·H1·15·5" : mtfV + (allAligned ? "  ✓" : ""), keysPass ? COL_NEUT : allAligned ? (dir > 0 ? COL_BULL : COL_BEAR) : color.new(COL_NEUT, 10))
+        r += 1
+    if explainOn
+        int okN = 0
+        array<int> ckIdx = array.from(0, 1, 2, 3, 4, 5, 6, 7, 10)
+        for [ci, qi] in ckIdx
+            if parts.get(qi) >= f_qualWeight(qi) * 0.75
+                okN += 1
+        bool ready = s == S_ENTRY_READY or (aState == 1 and conf >= 80)
+        f_dashCell(t, keysPass, r, keysPass ? "— Checklist" : str.tostring(okN) + "/9 · " + (ready ? "READY" : "WAIT"), keysPass ? COL_NEUT : ready ? (dir > 0 ? COL_BULL : COL_BEAR) : COL_NEUT)
+        r += 1
+        for [ci, qi] in ckIdx
+            bool okC = parts.get(qi) >= f_qualWeight(qi) * 0.75
+            f_dashCell(t, keysPass, r, keysPass ? f_qualName(qi) : okC ? "✓" : "✗", keysPass ? COL_NEUT : okC ? COL_BULL : color.new(COL_NEUT, 45))
+            r += 1
     if not isExec
         f_dashCell(t, keysPass, r, keysPass ? "— Stats" : "n FVG " + str.tostring(stArr.get(ST_FVG_TOT)), COL_NEUT)
         r += 1
@@ -1505,11 +1733,16 @@ f_panelFill(table t, bool keysPass, int s, int dir, int conf, array<float> parts
         [lw, lcnt] = f_winArgmax(loWinCnt)
         f_dashCell(t, keysPass, r, keysPass ? "DayHi/Lo window" : f_winName(hw) + " " + f_pct(hn, dayCnt) + " / " + f_winName(lw) + " " + f_pct(lcnt, dayCnt), keysPass ? COL_NEUT : color.new(COL_NEUT, 10))
         r += 1
+        [jn, jwr, javg, jcw, jcl] = f_journalStats()
+        f_dashCell(t, keysPass, r, keysPass ? "Auto-journal" : jn == 0 ? "empty" : "n=" + str.tostring(jn) + " · " + (na(jwr) ? "—" : str.tostring(jwr, "#") + "%") + " · " + (na(javg) ? "—" : str.tostring(javg, "#.##") + "R"), keysPass ? COL_NEUT : color.new(COL_NEUT, 10))
+        r += 1
+        f_dashCell(t, keysPass, r, keysPass ? "Conf win/loss" : (na(jcw) ? "—" : str.tostring(jcw, "#")) + " / " + (na(jcl) ? "—" : str.tostring(jcl, "#")), keysPass ? COL_NEUT : color.new(COL_NEUT, 10))
+        r += 1
     if isDebug
         f_dashCell(t, keysPass, r, keysPass ? "— Debug · state" : str.tostring(s) + " (" + f_stateName(s) + ")", COL_NEUT)
         r += 1
-        for ci = 0 to 8
-            f_dashCell(t, keysPass, r, keysPass ? "w · " + f_confName(ci) : str.tostring(parts.get(ci), "#.#"), keysPass ? COL_NEUT : parts.get(ci) > 0 ? color.new(COL_NEUT, 5) : color.new(COL_NEUT, 55))
+        for ci = 0 to 12
+            f_dashCell(t, keysPass, r, keysPass ? "w · " + f_qualName(ci) : str.tostring(parts.get(ci), "#.#") + "/" + str.tostring(f_qualWeight(ci), "#"), keysPass ? COL_NEUT : parts.get(ci) > 0 ? color.new(COL_NEUT, 5) : color.new(COL_NEUT, 55))
             r += 1
         f_dashCell(t, keysPass, r, keysPass ? "aState/tState" : str.tostring(aState) + " / " + str.tostring(tState), keysPass ? COL_NEUT : color.new(COL_NEUT, 10))
         r += 1
@@ -1525,12 +1758,12 @@ f_panelFill(table t, bool keysPass, int s, int dir, int conf, array<float> parts
 
 var table dash = na
 if dashOn and na(dash)
-    dash := table.new(dashPos == "Top Right" ? position.top_right : dashPos == "Top Left" ? position.top_left : dashPos == "Bottom Right" ? position.bottom_right : position.bottom_left, 2, 30, bgcolor = color.new(#0b0e13, 24), border_width = 0, frame_width = 0)
+    dash := table.new(dashPos == "Top Right" ? position.top_right : dashPos == "Top Left" ? position.top_left : dashPos == "Bottom Right" ? position.bottom_right : position.bottom_left, 2, 48, bgcolor = color.new(#0b0e13, 24), border_width = 0, frame_width = 0)
     table.merge_cells(dash, 0, 0, 1, 0)
-    array<float> parts0 = array.new<float>(9, 0.0)
+    array<float> parts0 = array.new<float>(13, 0.0)
     int _rowsK = f_panelFill(dash, true, S_IDLE, 0, 0, parts0)
 if dashOn and uiTick
-    array<float> partsNow = f_confParts(fsmDir, fsm)
+    array<float> partsNow = f_qualParts(fsmDir)
     int confNow = math.min(100, math.round(array.sum(partsNow)))
     int _rowsV = f_panelFill(dash, false, fsm, fsmDir, confNow, partsNow)
 
