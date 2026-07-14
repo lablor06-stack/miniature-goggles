@@ -3,6 +3,27 @@
 Formato: [SemVer](https://semver.org/lang/it/). Le modifiche ai parametri canonici P1–P17
 richiedono bump minor + nota di validazione (vedi `Documentation/00_Conventions_and_Specs.md` §4).
 
+## [3.2.0] — 2026-07 · Premium UI/UX (logica segnali invariata)
+
+### Aggiunto / Cambiato
+- **Gerarchia tipografica**: P1 = parola-azione **WAIT / READY / ACTIVE / CLOSED** (merged,
+  la più grande, campitura semantica) → P2 = LONG/SHORT · confidenza (merged) → P4 = stato
+  → P5 = dettagli; ramp di dimensioni unico scalato dall'input del panel.
+- **Blocco esecuzione (E/S/T/RR) solo negli stati 5-7**: chiavi e valori scritti nel value
+  pass, celle vuote quando idle — *deviazione motivata dalla spec*: righe che appaiono/
+  scompaiono cambierebbero la geometria del widget a ogni transizione (flicker di layout);
+  la geometria fissa con celle svuotate ottiene lo stesso effetto visivo senza salti.
+- **Smart visibility più severa (Execution)**: pool nascosti da WAITING MSS in poi; nuova
+  **watch-line riciclata** (un solo oggetto line riusato) che marca lo swing da rompere
+  durante l'attesa dell'MSS — implementa "Waiting MSS → show structure" meglio della
+  lettera; la struttura storica si ritira da WAITING RETRACEMENT in poi.
+- **Label whitelist**: in Execution la linea MSS è senza testo (il panel narra); restano
+  SWEEP, marker B e i testi analitici in Analysis/Debug.
+- **TRADE mode**: riga RR con progresso live ("+1.3R / 2.8"); riga State mostra lo stage
+  (ENTERED/BREAK EVEN/PARTIAL/RUNNER).
+- **Padding uniforme** (margini a due spazi su entrambe le colonne) e tema scuro coerente;
+  Debug aggiunge la riga metrics `objects P/Z/L` (conteggio oggetti vivi).
+
 ## [3.1.0] — 2026-07 · Execution platform (logica segnali invariata)
 
 ### Aggiunto

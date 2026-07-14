@@ -1,7 +1,20 @@
 //@version=6
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 //  IFTS — INSTITUTIONAL FUTURES TRADING SYSTEM · MASTER · DECISION SUPPORT SYSTEM
-//  Version 3.1.0 · Pine Script v6 · Target: CME index futures (ES/NQ), chart TF M1–H1
+//  Version 3.2.0 · Pine Script v6 · Target: CME index futures (ES/NQ), chart TF M1–H1
+//
+//  v3.2.0 — premium UI/UX pass (signal logic untouched):
+//    · typography hierarchy: P1 action word (WAIT/READY/ACTIVE/CLOSED, largest) → P2
+//      direction·confidence → P4 state → P5 details; size ramp scales with the panel size
+//    · execution block (E/S/T/RR) materializes only in states 5-7 — fixed layout, cells
+//      blank when idle (stable geometry = no flicker; deliberate deviation from
+//      rows-that-appear, justified in Documentation/07 §9)
+//    · stricter state visibility: pools hidden from WAITING MSS on; NEW recycled
+//      watch-line marks the swing that must break while waiting for the MSS; historical
+//      structure drawings stand down from WAITING RETRACEMENT (Execution)
+//    · smart-label whitelist: SWEEP · B trigger · (Analysis-only structure text) — the
+//      MSS event line is text-free in Execution, the panel narrates
+//    · TRADE mode: live R progress next to planned RR; Debug adds object-count metrics
 //
 //  v3.1.0 — execution platform upgrade (signal logic untouched):
 //    · SETUP QUALITY ENGINE: 13 weighted components → 0-100 → class A+ (≥95) / A (≥90) /
@@ -1526,7 +1539,8 @@ var array<label> msLabels = array.new<label>()
 f_msDraw(int fromBi, float px, string txt, color col) =>
     if drawWin and not na(px) and not na(fromBi)
         msLines.push(line.new(fromBi, px, bar_index, px, xloc = xloc.bar_index, color = color.new(col, 35), width = 1, style = line.style_dashed))
-        msLabels.push(label.new(bar_index, px, txt, xloc = xloc.bar_index, style = label.style_none, textcolor = color.new(col, 20), size = size.tiny))
+        if txt != ""
+            msLabels.push(label.new(bar_index, px, txt, xloc = xloc.bar_index, style = label.style_none, textcolor = color.new(col, 20), size = size.tiny))
         while msLines.size() > msCap
             line.delete(msLines.shift())
         while msLabels.size() > msCap
@@ -1537,9 +1551,9 @@ bool mssNarrUp = not isExec or (not na(lastSwpDnBi) and bar_index - lastSwpDnBi 
 bool mssNarrDn = not isExec or (not na(lastSwpUpBi) and bar_index - lastSwpUpBi <= advArmWin)
 if barstate.isconfirmed and msOn
     if mssUpEvt and msShowInt and mssNarrUp
-        f_msDraw(si.hiBi, si.hi, "MSS", COL_BULL)
+        f_msDraw(si.hiBi, si.hi, isExec ? "" : "MSS", COL_BULL)
     if mssDnEvt and msShowInt and mssNarrDn
-        f_msDraw(si.loBi, si.lo, "MSS", COL_BEAR)
+        f_msDraw(si.loBi, si.lo, isExec ? "" : "MSS", COL_BEAR)
     if not isExec
         if msShowExt and se.chochUp
             f_msDraw(se.hiBi, se.hi, "MSS·ext", COL_BULL)
@@ -1559,9 +1573,11 @@ if barstate.isconfirmed and msOn
 // entry zone during retracement wait, nothing while in trade. Analysis: only the highest-
 // quality FVG and OB per side (arrays stay fully populated for the engine). Debug: all
 // zones drawn at creation.
+var line watchLn = na
 if not isDebug and barstate.isconfirmed and drawWin
     if isExec
-        bool showPoolsNow = fsm <= S_ENTRY_READY
+        // liquidity is the object of attention only until it is taken (states 0-2)
+        bool showPoolsNow = fsm <= S_LIQ_TAKEN
         int i = pools.size() - 1
         while i >= 0
             Pool p = pools.get(i)
@@ -1570,6 +1586,26 @@ if not isDebug and barstate.isconfirmed and drawWin
             else
                 f_poolUndraw(p)
             i -= 1
+        // watch line (recycled object): the swing that must break while waiting for the MSS
+        bool showWatch = (fsm == S_LIQ_TAKEN or fsm == S_WAIT_MSS) and fsmDir != 0
+        float watchPx = fsmDir > 0 ? si.hi : si.lo
+        if showWatch and not na(watchPx)
+            color wCol = color.new(fsmDir > 0 ? COL_BULL : COL_BEAR, 40)
+            if na(watchLn)
+                watchLn := line.new(bar_index - 5, watchPx, bar_index + 4, watchPx, xloc = xloc.bar_index, color = wCol, width = 1, style = line.style_dotted)
+            else
+                line.set_xy1(watchLn, bar_index - 5, watchPx)
+                line.set_xy2(watchLn, bar_index + 4, watchPx)
+                line.set_color(watchLn, wCol)
+        else
+            line.delete(watchLn)
+            watchLn := na
+        // historical structure stands down once the narrative moves past it
+        if fsm >= S_WAIT_RETRACE
+            while msLines.size() > 0
+                line.delete(msLines.shift())
+            while msLabels.size() > 0
+                label.delete(msLabels.shift())
     Zone cF1 = na
     Zone cF2 = na
     Zone cO1 = na
@@ -1669,37 +1705,54 @@ f_winArgmax(array<int> a) =>
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 //  EXECUTION / ANALYSIS / DEBUG UI — the panel answers "what should I do right now?"
 // ════════════════════════════════════════════════════════════════════════════════════════════════
-string tszDash = dashSz == "Tiny" ? size.tiny : dashSz == "Small" ? size.small : size.normal
+// typography ramp — one knob (panel size) scales the whole hierarchy coherently
+string tsz1    = dashSz == "Tiny" ? size.normal : dashSz == "Small" ? size.large : size.huge   // P1 action word
+string tsz2    = dashSz == "Tiny" ? size.small : dashSz == "Small" ? size.normal : size.large  // P2 direction·confidence
+string tszDash = dashSz == "Tiny" ? size.tiny : dashSz == "Small" ? size.small : size.normal   // P4/P5 details
 
+// one cell writer with uniform padding (two-space margins on both columns)
 f_dashCell(table t, bool keysPass, int row, string txt, color tc) =>
-    table.cell(t, keysPass ? 0 : 1, row, txt, text_color = tc, text_size = tszDash, text_halign = keysPass ? text.align_left : text.align_right)
+    table.cell(t, keysPass ? 0 : 1, row, txt == "" ? "" : keysPass ? "  " + txt : txt + "  ", text_color = tc, text_size = tszDash, text_halign = keysPass ? text.align_left : text.align_right)
 
 f_panelFill(table t, bool keysPass, int s, int dir, int conf, array<float> parts) =>
     int r = 0
-    // header (merged): DIRECTION · CONFIDENCE · CLASS — the two-second answer
+    color dirCol = dir > 0 ? COL_BULL : dir < 0 ? COL_BEAR : COL_NEUT
+    // P1 (merged, largest): the action word — the two-second answer
     if not keysPass
-        color hCol = dir > 0 ? COL_BULL : dir < 0 ? COL_BEAR : COL_NEUT
-        string hTxt = (dir > 0 ? "LONG" : dir < 0 ? "SHORT" : "—") + (dir != 0 ? "   " + str.tostring(conf) + "%  ·  " + f_qClass(conf) : "")
-        table.cell(t, 0, r, hTxt, text_color = color.white, text_size = dashSz == "Normal" ? size.large : size.normal, text_halign = text.align_center, bgcolor = color.new(hCol, 35))
+        string act = s == S_TRADE_ACTIVE ? "ACTIVE" : s == S_TRADE_CLOSED ? "CLOSED" : s == S_WAIT_RETRACE or s == S_ENTRY_READY ? "READY" : "WAIT"
+        color actBg = s == S_TRADE_ACTIVE or s == S_WAIT_RETRACE or s == S_ENTRY_READY ? color.new(dirCol, 30) : s == S_TRADE_CLOSED ? color.new(tOutcome == "TARGET HIT" ? COL_BULL : tOutcome == "STOPPED" ? COL_BEAR : COL_NEUT, 55) : color.new(COL_NEUT, 78)
+        table.cell(t, 0, r, act, text_color = color.white, text_size = tsz1, text_halign = text.align_center, bgcolor = actBg)
     r += 1
-    string stTxt = s == S_TRADE_ACTIVE ? "ACTIVE · " + tStage : f_stateName(s)
-    f_dashCell(t, keysPass, r, keysPass ? "Status" : stTxt, keysPass ? COL_NEUT : s == S_TRADE_CLOSED ? (tOutcome == "TARGET HIT" ? COL_BULL : tOutcome == "STOPPED" ? COL_BEAR : COL_NEUT) : s >= S_ENTRY_READY ? (dir > 0 ? COL_BULL : COL_BEAR) : color.new(COL_NEUT, 5))
+    // P2/P3 (merged): direction · confidence
+    if not keysPass
+        string dcTxt = dir != 0 ? (dir > 0 ? "LONG" : "SHORT") + "  ·  " + str.tostring(conf) + "%" : " "
+        table.cell(t, 0, r, dcTxt, text_color = dir != 0 ? dirCol : COL_NEUT, text_size = tsz2, text_halign = text.align_center)
+    r += 1
+    // P4 state · P5 next required event
+    string stTxt = s == S_TRADE_ACTIVE ? tStage : f_stateName(s)
+    f_dashCell(t, keysPass, r, keysPass ? "State" : stTxt, keysPass ? COL_NEUT : s == S_TRADE_CLOSED ? (tOutcome == "TARGET HIT" ? COL_BULL : tOutcome == "STOPPED" ? COL_BEAR : COL_NEUT) : s >= S_ENTRY_READY and s <= S_TRADE_ACTIVE ? dirCol : color.new(COL_NEUT, 5))
     r += 1
     f_dashCell(t, keysPass, r, keysPass ? "Next" : f_nextTxt(s, dir), keysPass ? COL_NEUT : color.new(COL_NEUT, 5))
     r += 1
+    // execution block: exists only in states 5-7. Keys are written in the VALUE pass so the
+    // block visually disappears when idle while the table geometry stays fixed (no flicker).
     bool showEst = s >= S_WAIT_RETRACE and s <= S_TRADE_ACTIVE
-    float eShow = s == S_TRADE_ACTIVE ? tEntry : aEntry
-    float sShow = s == S_TRADE_ACTIVE ? tStop : aStop
-    float tShow = s == S_TRADE_ACTIVE ? tTgt : aTgt
-    float rShow = s == S_TRADE_ACTIVE ? tRr : aRr
-    f_dashCell(t, keysPass, r, keysPass ? "Entry" : showEst ? f_px(eShow) : "—", keysPass ? COL_NEUT : showEst ? (dir > 0 ? COL_BULL : COL_BEAR) : COL_NEUT)
-    r += 1
-    f_dashCell(t, keysPass, r, keysPass ? "Stop" : showEst ? f_px(sShow) : "—", keysPass ? COL_NEUT : showEst ? COL_BEAR : COL_NEUT)
-    r += 1
-    f_dashCell(t, keysPass, r, keysPass ? "Target" : showEst ? f_px(tShow) : "—", keysPass ? COL_NEUT : showEst ? COL_BULL : COL_NEUT)
-    r += 1
-    f_dashCell(t, keysPass, r, keysPass ? "RR" : showEst and not na(rShow) ? str.tostring(rShow, "#.##") : "—", keysPass ? COL_NEUT : showEst ? color.new(COL_VWAP, 15) : COL_NEUT)
-    r += 1
+    if not keysPass
+        float eShow = s == S_TRADE_ACTIVE ? tEntry : aEntry
+        float sShow = s == S_TRADE_ACTIVE ? tStop : aStop
+        float tShow = s == S_TRADE_ACTIVE ? tTgt : aTgt
+        float rPlan = s == S_TRADE_ACTIVE ? tRr : aRr
+        float rLive = s == S_TRADE_ACTIVE ? (tDir > 0 ? (close - tEntry) / math.max(tEntry - tStop, syminfo.mintick) : (tEntry - close) / math.max(tStop - tEntry, syminfo.mintick)) : na
+        f_dashCell(t, true, r, showEst ? "Entry" : "", COL_NEUT)
+        f_dashCell(t, false, r, showEst ? f_px(eShow) : "", dirCol)
+        f_dashCell(t, true, r + 1, showEst ? "Stop" : "", COL_NEUT)
+        f_dashCell(t, false, r + 1, showEst ? f_px(sShow) : "", COL_BEAR)
+        f_dashCell(t, true, r + 2, showEst ? "Target" : "", COL_NEUT)
+        f_dashCell(t, false, r + 2, showEst ? f_px(tShow) : "", COL_BULL)
+        f_dashCell(t, true, r + 3, showEst ? "RR" : "", COL_NEUT)
+        string rrTxt = not showEst or na(rPlan) ? "" : s == S_TRADE_ACTIVE and not na(rLive) ? (rLive >= 0 ? "+" : "") + str.tostring(rLive, "#.#") + "R / " + str.tostring(rPlan, "#.##") : str.tostring(rPlan, "#.##")
+        f_dashCell(t, false, r + 3, rrTxt, color.new(COL_VWAP, 15))
+    r += 4
     if mtfOn
         string mtfV = f_dirGlyph(biasDir) + "  " + f_dirGlyph(h1Dir) + "  " + f_dirGlyph(m15Dir) + "  " + f_dirGlyph(m5Dir)
         bool allAligned = dir != 0 and biasDir == dir and (na(h1Dir) or h1Dir == dir) and (na(m15Dir) or m15Dir == dir) and (na(m5Dir) or m5Dir == dir)
@@ -1753,6 +1806,8 @@ f_panelFill(table t, bool keysPass, int s, int dir, int conf, array<float> parts
         r += 1
         f_dashCell(t, keysPass, r, keysPass ? "SMT corr" : str.tostring(nz(corrVal), "#.##") + (corrOk ? " ok" : " standby"), keysPass ? COL_NEUT : color.new(COL_NEUT, 10))
         r += 1
+        f_dashCell(t, keysPass, r, keysPass ? "objects P/Z/L" : str.tostring(pools.size()) + " / " + str.tostring(fvgZones.size() + obZones.size()) + " / " + str.tostring(msLines.size() + smtLines.size()), keysPass ? COL_NEUT : color.new(COL_NEUT, 10))
+        r += 1
     r
 
 
@@ -1760,6 +1815,7 @@ var table dash = na
 if dashOn and na(dash)
     dash := table.new(dashPos == "Top Right" ? position.top_right : dashPos == "Top Left" ? position.top_left : dashPos == "Bottom Right" ? position.bottom_right : position.bottom_left, 2, 48, bgcolor = color.new(#0b0e13, 24), border_width = 0, frame_width = 0)
     table.merge_cells(dash, 0, 0, 1, 0)
+    table.merge_cells(dash, 0, 1, 1, 1)
     array<float> parts0 = array.new<float>(13, 0.0)
     int _rowsK = f_panelFill(dash, true, S_IDLE, 0, 0, parts0)
 if dashOn and uiTick

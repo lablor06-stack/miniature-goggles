@@ -134,7 +134,28 @@ cancellazione; le funzioni non assegnano globali.
 - **Target engine:** invariato per mandato (la selezione del target è dentro l'RR gate dei
   segnali); estensioni a tier documentate come roadmap.
 
-## 8. Verifica finale eseguita
+## 8. Addendum v3.2 — Premium UI (design audit)
+
+- **Gerarchia**: parola-azione (WAIT/READY/ACTIVE/CLOSED) come elemento dominante del
+  widget; direzione+confidenza al secondo livello; stato e next ai livelli inferiori; ramp
+  tipografico unico (Tiny/Small/Normal scalano tutta la gerarchia coerentemente).
+- **Micro-UX / anti-flicker (deviazione motivata)**: la spec chiede che E/S/T/RR "appaiano
+  solo quando pronti"; righe che compaiono cambierebbero l'altezza del widget a ogni
+  transizione di stato. Soluzione migliore: geometria fissa, chiavi+valori scritti nel
+  value pass e svuotati fuori dagli stati 5-7 — stesso risultato percepito, zero salti.
+- **"Waiting MSS → show structure" (miglioramento della spec)**: prima dell'MSS non esiste
+  ancora una linea-evento; l'oggetto utile è il *livello da rompere* — aggiunta una
+  watch-line dotted direzionale, un solo oggetto `line` riciclato (create/update/delete),
+  attiva solo negli stati 2-3. I pool si nascondono da WAITING MSS in poi come richiesto.
+- **Label whitelist**: SWEEP (evento prezzo) · marker B (trigger) · testi analitici solo in
+  Analysis/Debug. La linea MSS in Execution è muta: il panel è l'unico narratore.
+- **Trade mode**: RR live accanto al pianificato; stage nella riga State.
+- **Elementi rivalutati e NON aggiunti**: label on-chart per ENTRY READY/TRADE ACTIVE/
+  CLOSED (duplicherebbero il panel — un solo narratore); bordi/cornici del widget (Pine
+  non ha corner radius; il tema scuro uniforme senza bordi è la resa più pulita);
+  target-source nel panel (rimandato: richiede estendere la selezione target, zona segnali).
+
+## 9. Verifica finale eseguita
 
 Zero funzioni annidate; dichiarazioni sempre prima dell'uso (tracker vars spostate prima
 dei gate degli arm); 7 alertcondition; ~17 plot/shape; f_panelFill ritorna il conteggio
